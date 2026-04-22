@@ -1,4 +1,5 @@
 using ManufacturingPlatform.BuildingBlocks.Abstractions;
+using ManufacturingPlatform.BuildingBlocks.Runtime;
 using ManufacturingPlatform.Modules.Platform.Application;
 using ManufacturingPlatform.Modules.Platform.Contracts;
 using ManufacturingPlatform.Modules.Platform.Domain;
@@ -31,6 +32,10 @@ public sealed class PlatformModule : IModule
         var group = endpoints.MapGroup("/api/platform").WithTags("Platform");
 
         group.MapGet("/overview", Results);
+        group.MapPost("/session/login", (LoginRequest request, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.Login(request)));
+        group.MapGet("/session", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetSession(httpContext.GetSessionToken())));
+        group.MapGet("/users", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetUsers(httpContext.GetSessionToken())));
+        group.MapGet("/audit-logs", (HttpContext httpContext, IManufacturingRuntime runtime, int? take) => RuntimeApi.Execute(() => runtime.GetAuditLogs(httpContext.GetSessionToken(), take ?? 20)));
     }
 
     private static Ok<PlatformModuleOverview> Results()

@@ -1,4 +1,6 @@
 using ManufacturingPlatform.BuildingBlocks.Abstractions;
+using ManufacturingPlatform.BuildingBlocks.Runtime;
+using ManufacturingPlatform.Host.Runtime;
 using ManufacturingPlatform.Modules.AI;
 using ManufacturingPlatform.Modules.CRM;
 using ManufacturingPlatform.Modules.ERP;
@@ -13,6 +15,16 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(
+        "frontend",
+        policy => policy
+            .WithOrigins("http://127.0.0.1:4173", "http://localhost:4173", "http://127.0.0.1:5173", "http://localhost:5173")
+            .AllowAnyHeader()
+            .AllowAnyMethod());
+});
+builder.Services.AddSingleton<IManufacturingRuntime, InMemoryManufacturingRuntime>();
 
 IModule[] modules =
 [
@@ -34,6 +46,7 @@ foreach (var module in modules)
 var app = builder.Build();
 
 app.UseExceptionHandler();
+app.UseCors("frontend");
 
 if (app.Environment.IsDevelopment())
 {

@@ -1,4 +1,5 @@
 using ManufacturingPlatform.BuildingBlocks.Abstractions;
+using ManufacturingPlatform.BuildingBlocks.Runtime;
 using ManufacturingPlatform.Modules.MES.Application;
 using ManufacturingPlatform.Modules.MES.Contracts;
 using ManufacturingPlatform.Modules.MES.Domain;
@@ -31,6 +32,10 @@ public sealed class MesModule : IModule
         var group = endpoints.MapGroup("/api/mes").WithTags("MES");
 
         group.MapGet("/overview", Results);
+        group.MapGet("/work-orders", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetWorkOrders(httpContext.GetSessionToken())));
+        group.MapPost("/work-orders/{workOrderId:guid}/dispatch", (HttpContext httpContext, IManufacturingRuntime runtime, Guid workOrderId) => RuntimeApi.Execute(() => runtime.DispatchWorkOrder(httpContext.GetSessionToken(), workOrderId)));
+        group.MapPost("/work-orders/{workOrderId:guid}/start", (HttpContext httpContext, IManufacturingRuntime runtime, Guid workOrderId) => RuntimeApi.Execute(() => runtime.StartWorkOrder(httpContext.GetSessionToken(), workOrderId)));
+        group.MapPost("/work-orders/{workOrderId:guid}/report", (HttpContext httpContext, IManufacturingRuntime runtime, Guid workOrderId, ReportWorkOrderRequest request) => RuntimeApi.Execute(() => runtime.ReportWorkOrder(httpContext.GetSessionToken(), workOrderId, request)));
     }
 
     private static Ok<MesModuleOverview> Results()

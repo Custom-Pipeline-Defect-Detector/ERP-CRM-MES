@@ -15,17 +15,36 @@ This repository contains the initial scaffold for an on-premise manufacturing pl
 Backend:
 
 ```powershell
-dotnet build ManufacturingPlatform.sln
-dotnet run --project src/backend/Host/ManufacturingPlatform.Host/ManufacturingPlatform.Host.csproj
+$env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE='1'
+$env:DOTNET_CLI_HOME="$PWD\\.dotnet_cli"
+$env:DOTNET_CLI_TELEMETRY_OPTOUT='1'
+$env:DOTNET_ADD_GLOBAL_TOOLS_TO_PATH='0'
+$env:DOTNET_GENERATE_ASPNET_CERTIFICATE='0'
+$env:DOTNET_NOLOGO='1'
+$env:NUGET_PACKAGES="$env:USERPROFILE\\.nuget\\packages"
+
+dotnet build src/backend/Host/ManufacturingPlatform.Host/ManufacturingPlatform.Host.csproj -m:1 -p:RestoreIgnoreFailedSources=true
+dotnet run --project src/backend/Host/ManufacturingPlatform.Host/ManufacturingPlatform.Host.csproj --urls http://127.0.0.1:5099
 ```
+
+Backend endpoints:
+
+- `http://127.0.0.1:5099/`
+- `http://127.0.0.1:5099/api/health`
+- `http://127.0.0.1:5099/swagger`
 
 Frontend:
 
 ```powershell
 cd src/frontend/web
 npm install
-npm run dev
+npm run build
+npm run preview -- --host 127.0.0.1 --port 4173
 ```
+
+Frontend endpoint:
+
+- `http://127.0.0.1:4173/`
 
 ## Next implementation priorities
 

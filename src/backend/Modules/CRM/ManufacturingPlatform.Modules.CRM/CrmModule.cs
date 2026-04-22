@@ -1,4 +1,5 @@
 using ManufacturingPlatform.BuildingBlocks.Abstractions;
+using ManufacturingPlatform.BuildingBlocks.Runtime;
 using ManufacturingPlatform.Modules.CRM.Application;
 using ManufacturingPlatform.Modules.CRM.Contracts;
 using ManufacturingPlatform.Modules.CRM.Domain;
@@ -31,6 +32,13 @@ public sealed class CrmModule : IModule
         var group = endpoints.MapGroup("/api/crm").WithTags("CRM");
 
         group.MapGet("/overview", Results);
+        group.MapGet("/customers", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetCustomers(httpContext.GetSessionToken())));
+        group.MapPost("/customers", (HttpContext httpContext, IManufacturingRuntime runtime, CreateCustomerRequest request) => RuntimeApi.Execute(() => runtime.CreateCustomer(httpContext.GetSessionToken(), request)));
+        group.MapGet("/sales-orders", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetSalesOrders(httpContext.GetSessionToken())));
+        group.MapPost("/sales-orders", (HttpContext httpContext, IManufacturingRuntime runtime, CreateSalesOrderRequest request) => RuntimeApi.Execute(() => runtime.CreateSalesOrder(httpContext.GetSessionToken(), request)));
+        group.MapPost("/sales-orders/{salesOrderId:guid}/submit", (HttpContext httpContext, IManufacturingRuntime runtime, Guid salesOrderId) => RuntimeApi.Execute(() => runtime.SubmitSalesOrder(httpContext.GetSessionToken(), salesOrderId)));
+        group.MapPost("/sales-orders/{salesOrderId:guid}/approve", (HttpContext httpContext, IManufacturingRuntime runtime, Guid salesOrderId) => RuntimeApi.Execute(() => runtime.ApproveSalesOrder(httpContext.GetSessionToken(), salesOrderId)));
+        group.MapPost("/sales-orders/{salesOrderId:guid}/release", (HttpContext httpContext, IManufacturingRuntime runtime, Guid salesOrderId) => RuntimeApi.Execute(() => runtime.ReleaseSalesOrder(httpContext.GetSessionToken(), salesOrderId)));
     }
 
     private static Ok<CrmModuleOverview> Results()

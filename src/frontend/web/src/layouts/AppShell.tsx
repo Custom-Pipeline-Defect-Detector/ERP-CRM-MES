@@ -1,11 +1,25 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { useState } from 'react'
 import { moduleRegistry } from '../app/moduleRegistry'
+import { useSession } from '../app/session'
 
 export function AppShell() {
   const location = useLocation()
+  const { availableUsers, error, isLoading, loginAs, session } = useSession()
+  const [isSwitchingUser, setIsSwitchingUser] = useState(false)
   const selectedKey = location.pathname.startsWith('/modules/')
     ? location.pathname.split('/')[2] ?? 'dashboard'
     : 'dashboard'
+
+  async function handleLoginAs(userName: string) {
+    setIsSwitchingUser(true)
+
+    try {
+      await loginAs(userName)
+    } finally {
+      setIsSwitchingUser(false)
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -49,10 +63,39 @@ export function AppShell() {
       <main className="main-panel">
         <header className="app-header">
           <span className="header-kicker">Project Backbone</span>
-          <h2 className="header-title">Integrated Manufacturing Management System</h2>
+          <div className="header-bar">
+            <div>
+              <h2 className="header-title">Integrated Manufacturing Management System</h2>
+              <p className="header-copy">
+                {session
+                  ? `${session.user.displayName} | ${session.user.department} | ${session.user.roles.join(', ')}`
+                  : 'Connecting to the local platform runtime'}
+              </p>
+            </div>
+
+            <div className="session-panel">
+              <span className="session-label">Demo login</span>
+              <div className="session-switcher">
+                {availableUsers.map((userName) => (
+                  <button
+                    key={userName}
+                    className={session?.user.userName === userName ? 'button button-primary' : 'button button-secondary'}
+                    disabled={isLoading || isSwitchingUser}
+                    onClick={() => {
+                      void handleLoginAs(userName)
+                    }}
+                    type="button"
+                  >
+                    {userName}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </header>
 
         <section className="app-content">
+          {error ? <div className="notice-banner notice-banner-error">{error}</div> : null}
           <Outlet />
         </section>
       </main>

@@ -1,4 +1,5 @@
 using ManufacturingPlatform.BuildingBlocks.Abstractions;
+using ManufacturingPlatform.BuildingBlocks.Runtime;
 using ManufacturingPlatform.Modules.Reporting.Application;
 using ManufacturingPlatform.Modules.Reporting.Contracts;
 using ManufacturingPlatform.Modules.Reporting.Domain;
@@ -31,6 +32,7 @@ public sealed class ReportingModule : IModule
         var group = endpoints.MapGroup("/api/reporting").WithTags("Reporting");
 
         group.MapGet("/overview", Results);
+        group.MapGet("/dashboard", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetDashboard(httpContext.GetSessionToken())));
     }
 
     private static Ok<ReportingModuleOverview> Results()

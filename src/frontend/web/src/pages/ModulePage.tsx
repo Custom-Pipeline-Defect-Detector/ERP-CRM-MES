@@ -1,5 +1,9 @@
 import { useParams } from 'react-router-dom'
 import { getModuleDefinition } from '../app/moduleRegistry'
+import { CrmModulePage } from './modules/CrmModulePage'
+import { ErpModulePage } from './modules/ErpModulePage'
+import { MesModulePage } from './modules/MesModulePage'
+import { PlatformModulePage } from './modules/PlatformModulePage'
 
 export function ModulePage() {
   const { moduleKey } = useParams()
@@ -12,6 +16,22 @@ export function ModulePage() {
         <p>The selected module is not part of the current scaffold.</p>
       </section>
     )
+  }
+
+  if (moduleDefinition.key === 'platform') {
+    return <PlatformModulePage />
+  }
+
+  if (moduleDefinition.key === 'crm') {
+    return <CrmModulePage />
+  }
+
+  if (moduleDefinition.key === 'erp') {
+    return <ErpModulePage />
+  }
+
+  if (moduleDefinition.key === 'mes') {
+    return <MesModulePage />
   }
 
   return (

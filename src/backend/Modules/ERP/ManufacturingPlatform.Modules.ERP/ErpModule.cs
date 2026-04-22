@@ -1,4 +1,5 @@
 using ManufacturingPlatform.BuildingBlocks.Abstractions;
+using ManufacturingPlatform.BuildingBlocks.Runtime;
 using ManufacturingPlatform.Modules.ERP.Application;
 using ManufacturingPlatform.Modules.ERP.Contracts;
 using ManufacturingPlatform.Modules.ERP.Domain;
@@ -31,6 +32,9 @@ public sealed class ErpModule : IModule
         var group = endpoints.MapGroup("/api/erp").WithTags("ERP");
 
         group.MapGet("/overview", Results);
+        group.MapGet("/products", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetProducts(httpContext.GetSessionToken())));
+        group.MapGet("/production-orders", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetProductionOrders(httpContext.GetSessionToken())));
+        group.MapPost("/production-orders/{productionOrderId:guid}/release-to-mes", (HttpContext httpContext, IManufacturingRuntime runtime, Guid productionOrderId) => RuntimeApi.Execute(() => runtime.ReleaseProductionOrderToMes(httpContext.GetSessionToken(), productionOrderId)));
     }
 
     private static Ok<ErpModuleOverview> Results()
