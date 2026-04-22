@@ -37,6 +37,9 @@ export interface DashboardMetrics {
   activeWorkOrders: number
   openSalesAmount: number
   reportedGoodQuantity: number
+  pendingQualityInspections: number
+  inventoryItemsTracked: number
+  readyAccountingBridgeEntries: number
 }
 
 export interface ActivityFeedItem {
@@ -111,4 +114,63 @@ export interface DashboardSnapshot {
   activeProductionOrders: ProductionOrderListItem[]
   activeWorkOrders: WorkOrderListItem[]
   recentActivity: ActivityFeedItem[]
+}
+
+export interface InventoryBalanceItem {
+  itemCode: string
+  itemName: string
+  warehouseCode: string
+  onHandQuantity: number
+  pendingInspectionQuantity: number
+  releasedQuantity: number
+  averageUnitCost: number
+}
+
+export interface CostLedgerItem {
+  workOrderId: string
+  workOrderNumber: string
+  productionOrderNumber: string
+  materialCost: number
+  laborCost: number
+  machineCost: number
+  overheadCost: number
+  scrapCost: number
+  totalCost: number
+  unitCost: number
+}
+
+export interface AccountingBridgeItem {
+  id: string
+  bridgeNumber: string
+  sourceDocumentNumber: string
+  sourceEvent: string
+  amount: number
+  postingAccount: string
+  state: string
+  generatedAt: string
+}
+
+export interface QualityInspectionItem {
+  id: string
+  inspectionNumber: string
+  inspectionType: string
+  workOrderNumber: string
+  productionOrderNumber: string
+  batchNumber: string
+  inspectedQuantity: number
+  defectQuantity: number
+  state: string
+  disposition: string | null
+  inspector: string | null
+  createdAt: string
+  completedAt: string | null
+  notes: string | null
+}
+
+export interface AiManagementSummary {
+  source: string
+  model: string
+  generatedAt: string
+  summary: string
+  warnings: string[]
 }

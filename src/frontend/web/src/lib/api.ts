@@ -1,9 +1,14 @@
 import type {
+  AccountingBridgeItem,
+  AiManagementSummary,
   AuditLogItem,
+  CostLedgerItem,
   CustomerListItem,
   DashboardSnapshot,
+  InventoryBalanceItem,
   ProductListItem,
   ProductionOrderListItem,
+  QualityInspectionItem,
   SalesOrderListItem,
   Session,
   UserListItem,
@@ -131,6 +136,9 @@ export const crmApi = {
 export const erpApi = {
   getProducts: () => request<ProductListItem[]>('/api/erp/products'),
   getProductionOrders: () => request<ProductionOrderListItem[]>('/api/erp/production-orders'),
+  getInventoryBalances: () => request<InventoryBalanceItem[]>('/api/erp/inventory-balances'),
+  getCostLedgers: () => request<CostLedgerItem[]>('/api/erp/cost-ledgers'),
+  getAccountingBridges: () => request<AccountingBridgeItem[]>('/api/erp/accounting-bridges'),
   releaseProductionOrderToMes: (productionOrderId: string) =>
     request<ProductionOrderListItem>(`/api/erp/production-orders/${productionOrderId}/release-to-mes`, {
       method: 'POST',
@@ -158,4 +166,24 @@ export const mesApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+}
+
+export const qualityApi = {
+  getInspections: () => request<QualityInspectionItem[]>('/api/quality/inspections'),
+  completeInspection: (
+    inspectionId: string,
+    payload: {
+      disposition: string
+      defectQuantity: number
+      notes: string | null
+    },
+  ) =>
+    request<QualityInspectionItem>(`/api/quality/inspections/${inspectionId}/complete`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+}
+
+export const aiApi = {
+  getManagementSummary: () => request<AiManagementSummary>('/api/ai/management-summary'),
 }

@@ -1,4 +1,5 @@
 using ManufacturingPlatform.BuildingBlocks.Abstractions;
+using ManufacturingPlatform.BuildingBlocks.Runtime;
 using ManufacturingPlatform.Modules.Quality.Application;
 using ManufacturingPlatform.Modules.Quality.Contracts;
 using ManufacturingPlatform.Modules.Quality.Domain;
@@ -31,6 +32,8 @@ public sealed class QualityModule : IModule
         var group = endpoints.MapGroup("/api/quality").WithTags("Quality");
 
         group.MapGet("/overview", Results);
+        group.MapGet("/inspections", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetQualityInspections(httpContext.GetSessionToken())));
+        group.MapPost("/inspections/{inspectionId:guid}/complete", (HttpContext httpContext, IManufacturingRuntime runtime, Guid inspectionId, CompleteQualityInspectionRequest request) => RuntimeApi.Execute(() => runtime.CompleteQualityInspection(httpContext.GetSessionToken(), inspectionId, request)));
     }
 
     private static Ok<QualityModuleOverview> Results()

@@ -1,6 +1,7 @@
 using ManufacturingPlatform.BuildingBlocks.Abstractions;
 using ManufacturingPlatform.BuildingBlocks.Runtime;
 using ManufacturingPlatform.Host.Runtime;
+using ManufacturingPlatform.Host.Persistence;
 using ManufacturingPlatform.Modules.AI;
 using ManufacturingPlatform.Modules.CRM;
 using ManufacturingPlatform.Modules.ERP;
@@ -9,12 +10,28 @@ using ManufacturingPlatform.Modules.MES;
 using ManufacturingPlatform.Modules.Platform;
 using ManufacturingPlatform.Modules.Quality;
 using ManufacturingPlatform.Modules.Reporting;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.Configure<ManufacturingOptions>(builder.Configuration.GetSection("Manufacturing"));
+var manufacturingOptions = builder.Configuration.GetSection("Manufacturing").Get<ManufacturingOptions>() ?? new ManufacturingOptions();
+builder.Services.AddDbContext<ManufacturingDbContext>(options =>
+{
+    var provider = manufacturingOptions.Database.Provider.Trim();
+    var connectionString = manufacturingOptions.Database.ConnectionString;
+
+    if (string.Equals(provider, "SqlServer", StringComparison.OrdinalIgnoreCase))
+    {
+        options.UseSqlServer(connectionString);
+        return;
+    }
+
+    options.UseSqlite(connectionString);
+});
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(
@@ -24,7 +41,9 @@ builder.Services.AddCors(options =>
             .AllowAnyHeader()
             .AllowAnyMethod());
 });
-builder.Services.AddSingleton<IManufacturingRuntime, InMemoryManufacturingRuntime>();
+builder.Services.AddHttpClient(nameof(ManufacturingAiSummaryService));
+builder.Services.AddScoped<ManufacturingAiSummaryService>();
+builder.Services.AddScoped<IManufacturingRuntime, EfManufacturingRuntime>();
 
 IModule[] modules =
 [
@@ -44,6 +63,8 @@ foreach (var module in modules)
 }
 
 var app = builder.Build();
+
+await ManufacturingDbInitializer.InitializeAsync(app.Services);
 
 app.UseExceptionHandler();
 app.UseCors("frontend");

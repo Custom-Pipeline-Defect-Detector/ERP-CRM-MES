@@ -29,7 +29,7 @@ public static class ManufacturingDbInitializer
         dbContext.Departments.AddRange(salesDepartment, planningDepartment, productionDepartment, qualityDepartment, itDepartment);
 
         var permissions = CreatePermissions();
-        dbContext.Permissions.AddRange(permissions);
+        dbContext.Permissions.AddRange(permissions.Values);
 
         var adminRole = new RoleEntity { Id = Id("ROLE-ADMIN"), Code = "ADMIN", Name = "System Administrator" };
         var salesRole = new RoleEntity { Id = Id("ROLE-SALES"), Code = "SALES", Name = "Sales Manager" };
@@ -381,7 +381,7 @@ public static class ManufacturingDbInitializer
                 BatchNumber = workOrder2.FinishedGoodsBatchNumber ?? "FG-UNKNOWN",
                 InspectedQuantity = 36m,
                 DefectQuantity = 2m,
-                State = InspectionRecordState.InProgress,
+                State = InspectionRecordState.InInspection,
                 Disposition = null,
                 InspectorUserName = null,
                 Notes = "Final inspection pending quality release.",

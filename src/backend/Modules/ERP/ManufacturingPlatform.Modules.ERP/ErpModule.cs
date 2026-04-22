@@ -35,6 +35,9 @@ public sealed class ErpModule : IModule
         group.MapGet("/products", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetProducts(httpContext.GetSessionToken())));
         group.MapGet("/production-orders", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetProductionOrders(httpContext.GetSessionToken())));
         group.MapPost("/production-orders/{productionOrderId:guid}/release-to-mes", (HttpContext httpContext, IManufacturingRuntime runtime, Guid productionOrderId) => RuntimeApi.Execute(() => runtime.ReleaseProductionOrderToMes(httpContext.GetSessionToken(), productionOrderId)));
+        group.MapGet("/inventory-balances", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetInventoryBalances(httpContext.GetSessionToken())));
+        group.MapGet("/cost-ledgers", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetCostLedgers(httpContext.GetSessionToken())));
+        group.MapGet("/accounting-bridges", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetAccountingBridges(httpContext.GetSessionToken())));
     }
 
     private static Ok<ErpModuleOverview> Results()

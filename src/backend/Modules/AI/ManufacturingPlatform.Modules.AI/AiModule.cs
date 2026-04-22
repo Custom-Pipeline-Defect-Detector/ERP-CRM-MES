@@ -1,4 +1,5 @@
 using ManufacturingPlatform.BuildingBlocks.Abstractions;
+using ManufacturingPlatform.BuildingBlocks.Runtime;
 using ManufacturingPlatform.Modules.AI.Application;
 using ManufacturingPlatform.Modules.AI.Contracts;
 using ManufacturingPlatform.Modules.AI.Domain;
@@ -31,6 +32,7 @@ public sealed class AiModule : IModule
         var group = endpoints.MapGroup("/api/ai").WithTags("AI");
 
         group.MapGet("/overview", Results);
+        group.MapGet("/management-summary", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GenerateManagementSummary(httpContext.GetSessionToken())));
     }
 
     private static Ok<AiModuleOverview> Results()

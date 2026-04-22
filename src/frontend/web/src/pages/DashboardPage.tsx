@@ -104,6 +104,18 @@ export function DashboardPage() {
             {dashboard ? formatCurrency(dashboard.metrics.openSalesAmount) : formatCurrency(0)}
           </strong>
         </article>
+        <article className="stat-card">
+          <span className="stat-label">Pending Inspections</span>
+          <strong className="stat-value">{dashboard?.metrics.pendingQualityInspections ?? 0}</strong>
+        </article>
+        <article className="stat-card">
+          <span className="stat-label">Inventory Items</span>
+          <strong className="stat-value">{dashboard?.metrics.inventoryItemsTracked ?? 0}</strong>
+        </article>
+        <article className="stat-card">
+          <span className="stat-label">Ready Bridge Entries</span>
+          <strong className="stat-value">{dashboard?.metrics.readyAccountingBridgeEntries ?? 0}</strong>
+        </article>
       </section>
 
       <section className="content-grid">
@@ -125,6 +137,7 @@ export function DashboardPage() {
               <li>{dashboard.metrics.customerCount} customers in the shared master file</li>
               <li>{dashboard.metrics.activeWorkOrders} active work orders across the shop floor</li>
               <li>{formatNumber(dashboard.metrics.reportedGoodQuantity)} good units reported so far</li>
+              <li>{dashboard.metrics.pendingQualityInspections} quality decisions are still pending</li>
             </ul>
           )}
         </article>

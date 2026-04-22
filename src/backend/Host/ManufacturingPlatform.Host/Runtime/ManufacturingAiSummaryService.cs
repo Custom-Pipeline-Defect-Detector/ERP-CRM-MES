@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using ManufacturingPlatform.BuildingBlocks.Runtime;
 using ManufacturingPlatform.Host.Persistence;
+using Microsoft.Extensions.Options;
 
 namespace ManufacturingPlatform.Host.Runtime;
 

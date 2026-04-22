@@ -1,9 +1,11 @@
 import { useParams } from 'react-router-dom'
 import { getModuleDefinition } from '../app/moduleRegistry'
+import { AiModulePage } from './modules/AiModulePage'
 import { CrmModulePage } from './modules/CrmModulePage'
 import { ErpModulePage } from './modules/ErpModulePage'
 import { MesModulePage } from './modules/MesModulePage'
 import { PlatformModulePage } from './modules/PlatformModulePage'
+import { QualityModulePage } from './modules/QualityModulePage'
 
 export function ModulePage() {
   const { moduleKey } = useParams()
@@ -32,6 +34,14 @@ export function ModulePage() {
 
   if (moduleDefinition.key === 'mes') {
     return <MesModulePage />
+  }
+
+  if (moduleDefinition.key === 'quality') {
+    return <QualityModulePage />
+  }
+
+  if (moduleDefinition.key === 'ai') {
+    return <AiModulePage />
   }
 
   return (

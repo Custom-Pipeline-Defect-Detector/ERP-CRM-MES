@@ -10,7 +10,7 @@ interface SessionContextValue {
   availableUsers: string[]
 }
 
-const availableUsers = ['admin', 'sales', 'planner', 'operator']
+const availableUsers = ['admin', 'sales', 'planner', 'operator', 'quality']
 
 const SessionContext = createContext<SessionContextValue | null>(null)
 
