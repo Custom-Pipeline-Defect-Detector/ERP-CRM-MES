@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.26" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\ManufacturingPlatform.BuildingBlocks\ManufacturingPlatform.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\..\Modules\AI\ManufacturingPlatform.Modules.AI\ManufacturingPlatform.Modules.AI.csproj" />
+    <ProjectReference Include="..\..\Modules\CRM\ManufacturingPlatform.Modules.CRM\ManufacturingPlatform.Modules.CRM.csproj" />
+    <ProjectReference Include="..\..\Modules\ERP\ManufacturingPlatform.Modules.ERP\ManufacturingPlatform.Modules.ERP.csproj" />
+    <ProjectReference Include="..\..\Modules\Integration\ManufacturingPlatform.Modules.Integration\ManufacturingPlatform.Modules.Integration.csproj" />
+    <ProjectReference Include="..\..\Modules\MES\ManufacturingPlatform.Modules.MES\ManufacturingPlatform.Modules.MES.csproj" />
+    <ProjectReference Include="..\..\Modules\Platform\ManufacturingPlatform.Modules.Platform\ManufacturingPlatform.Modules.Platform.csproj" />
+    <ProjectReference Include="..\..\Modules\Quality\ManufacturingPlatform.Modules.Quality\ManufacturingPlatform.Modules.Quality.csproj" />
+    <ProjectReference Include="..\..\Modules\Reporting\ManufacturingPlatform.Modules.Reporting\ManufacturingPlatform.Modules.Reporting.csproj" />
+  </ItemGroup>
+
+</Project>
