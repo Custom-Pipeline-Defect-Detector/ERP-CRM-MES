@@ -1,4 +1,5 @@
 using ManufacturingPlatform.BuildingBlocks.Abstractions;
+using ManufacturingPlatform.BuildingBlocks.Runtime;
 using ManufacturingPlatform.Modules.Integration.Application;
 using ManufacturingPlatform.Modules.Integration.Contracts;
 using ManufacturingPlatform.Modules.Integration.Domain;
@@ -31,6 +32,12 @@ public sealed class IntegrationModule : IModule
         var group = endpoints.MapGroup("/api/integration").WithTags("Integration");
 
         group.MapGet("/overview", Results);
+        group.MapGet("/external-systems", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetExternalSystems(httpContext.GetSessionToken())));
+        group.MapGet("/accounting-export-batches", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetAccountingExportBatches(httpContext.GetSessionToken())));
+        group.MapPost("/accounting-export-batches", (HttpContext httpContext, IManufacturingRuntime runtime, CreateAccountingExportBatchRequest request) => RuntimeApi.Execute(() => runtime.CreateAccountingExportBatch(httpContext.GetSessionToken(), request)));
+        group.MapPost("/accounting-export-batches/{exportBatchId:guid}/dispatch", (HttpContext httpContext, IManufacturingRuntime runtime, Guid exportBatchId) => RuntimeApi.Execute(() => runtime.DispatchAccountingExportBatch(httpContext.GetSessionToken(), exportBatchId)));
+        group.MapGet("/jobs", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetIntegrationJobs(httpContext.GetSessionToken())));
+        group.MapPost("/jobs/{integrationJobId:guid}/complete", (HttpContext httpContext, IManufacturingRuntime runtime, Guid integrationJobId, CompleteIntegrationJobRequest request) => RuntimeApi.Execute(() => runtime.CompleteIntegrationJob(httpContext.GetSessionToken(), integrationJobId, request)));
     }
 
     private static Ok<IntegrationModuleOverview> Results()

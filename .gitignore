@@ -7,3 +7,7 @@ dist/
 *.user
 *.suo
 *.cache
+*.log
+infra/data/*.db
+infra/data/*.db-shm
+infra/data/*.db-wal

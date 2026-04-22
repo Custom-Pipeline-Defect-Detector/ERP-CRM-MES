@@ -67,6 +67,55 @@ export interface ProductListItem {
   baseUnitCode: string
 }
 
+export interface MaterialListItem {
+  id: string
+  code: string
+  name: string
+  baseUnitCode: string
+  standardUnitCost: number
+  reorderLevel: number
+}
+
+export interface SupplierListItem {
+  id: string
+  code: string
+  name: string
+  category: string
+  taxRegistrationNumber: string
+  leadTimeDays: number
+  paymentTerms: string
+}
+
+export interface PurchaseOrderListItem {
+  id: string
+  orderNumber: string
+  supplierId: string
+  supplierName: string
+  materialCode: string
+  orderedQuantity: number
+  receivedQuantity: number
+  unitPrice: number
+  totalAmount: number
+  warehouseCode: string
+  state: string
+  orderedOn: string
+  expectedReceiptDate: string
+}
+
+export interface GoodsReceiptListItem {
+  id: string
+  receiptNumber: string
+  purchaseOrderNumber: string
+  supplierName: string
+  materialCode: string
+  receivedQuantity: number
+  warehouseCode: string
+  qualityStatus: string
+  state: string
+  batchNumber: string
+  receivedOn: string
+}
+
 export interface SalesOrderListItem {
   id: string
   orderNumber: string
@@ -80,6 +129,19 @@ export interface SalesOrderListItem {
   orderDate: string
   requestedDeliveryDate: string
   productionOrderNumber: string | null
+}
+
+export interface SalesShipmentListItem {
+  id: string
+  shipmentNumber: string
+  salesOrderNumber: string
+  customerName: string
+  productCode: string
+  shippedQuantity: number
+  warehouseCode: string
+  batchNumber: string
+  state: string
+  shippedOn: string
 }
 
 export interface ProductionOrderListItem {
@@ -173,4 +235,39 @@ export interface AiManagementSummary {
   generatedAt: string
   summary: string
   warnings: string[]
+}
+
+export interface ExternalSystemStatus {
+  id: string
+  systemCode: string
+  name: string
+  baseUrl: string
+  isEnabled: boolean
+  healthStatus: string
+  lastCheckedAt: string | null
+}
+
+export interface AccountingExportBatch {
+  id: string
+  batchNumber: string
+  targetSystemCode: string
+  state: string
+  bridgeCount: number
+  totalAmount: number
+  createdAt: string
+  sentAt: string | null
+  completedAt: string | null
+}
+
+export interface IntegrationJobItem {
+  id: string
+  jobNumber: string
+  targetSystemCode: string
+  jobType: string
+  state: string
+  relatedBatchNumber: string | null
+  payloadSummary: string
+  queuedAt: string
+  completedAt: string | null
+  lastError: string | null
 }

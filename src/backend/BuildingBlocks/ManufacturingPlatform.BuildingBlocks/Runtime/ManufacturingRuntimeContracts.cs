@@ -60,6 +60,80 @@ public sealed record ProductListItemDto(
     string ProductFamily,
     string BaseUnitCode);
 
+public sealed record MaterialListItemDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string BaseUnitCode,
+    decimal StandardUnitCost,
+    decimal ReorderLevel);
+
+public sealed record SupplierListItemDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string Category,
+    string TaxRegistrationNumber,
+    int LeadTimeDays,
+    string PaymentTerms);
+
+public sealed record PurchaseOrderListItemDto(
+    Guid Id,
+    string OrderNumber,
+    Guid SupplierId,
+    string SupplierName,
+    string MaterialCode,
+    decimal OrderedQuantity,
+    decimal ReceivedQuantity,
+    decimal UnitPrice,
+    decimal TotalAmount,
+    string WarehouseCode,
+    string State,
+    DateOnly OrderedOn,
+    DateOnly ExpectedReceiptDate);
+
+public sealed record CreatePurchaseOrderRequest(
+    Guid SupplierId,
+    string MaterialCode,
+    decimal OrderedQuantity,
+    decimal UnitPrice,
+    string WarehouseCode,
+    DateOnly ExpectedReceiptDate);
+
+public sealed record GoodsReceiptListItemDto(
+    Guid Id,
+    string ReceiptNumber,
+    string PurchaseOrderNumber,
+    string SupplierName,
+    string MaterialCode,
+    decimal ReceivedQuantity,
+    string WarehouseCode,
+    string QualityStatus,
+    string State,
+    string BatchNumber,
+    DateOnly ReceivedOn);
+
+public sealed record ReceivePurchaseOrderRequest(
+    decimal ReceivedQuantity,
+    string BatchNumber);
+
+public sealed record SalesShipmentListItemDto(
+    Guid Id,
+    string ShipmentNumber,
+    string SalesOrderNumber,
+    string CustomerName,
+    string ProductCode,
+    decimal ShippedQuantity,
+    string WarehouseCode,
+    string BatchNumber,
+    string State,
+    DateOnly ShippedOn);
+
+public sealed record ShipSalesOrderRequest(
+    Guid SalesOrderId,
+    decimal ShippedQuantity,
+    string WarehouseCode);
+
 public sealed record CustomerListItemDto(
     Guid Id,
     string Code,
@@ -162,6 +236,8 @@ public sealed record AccountingBridgeItemDto(
     string State,
     DateTimeOffset GeneratedAt);
 
+public sealed record UpdateAccountingBridgeStateRequest(string TargetState);
+
 public sealed record QualityInspectionItemDto(
     Guid Id,
     string InspectionNumber,
@@ -190,6 +266,44 @@ public sealed record AiManagementSummaryDto(
     string Summary,
     IReadOnlyList<string> Warnings);
 
+public sealed record ExternalSystemStatusDto(
+    Guid Id,
+    string SystemCode,
+    string Name,
+    string BaseUrl,
+    bool IsEnabled,
+    string HealthStatus,
+    DateTimeOffset? LastCheckedAt);
+
+public sealed record AccountingExportBatchDto(
+    Guid Id,
+    string BatchNumber,
+    string TargetSystemCode,
+    string State,
+    int BridgeCount,
+    decimal TotalAmount,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? SentAt,
+    DateTimeOffset? CompletedAt);
+
+public sealed record CreateAccountingExportBatchRequest(string TargetSystemCode);
+
+public sealed record IntegrationJobItemDto(
+    Guid Id,
+    string JobNumber,
+    string TargetSystemCode,
+    string JobType,
+    string State,
+    string? RelatedBatchNumber,
+    string PayloadSummary,
+    DateTimeOffset QueuedAt,
+    DateTimeOffset? CompletedAt,
+    string? LastError);
+
+public sealed record CompleteIntegrationJobRequest(
+    string Outcome,
+    string? ErrorMessage);
+
 public interface IManufacturingRuntime
 {
     SessionDto Login(LoginRequest request);
@@ -198,6 +312,14 @@ public interface IManufacturingRuntime
     IReadOnlyList<AuditLogItemDto> GetAuditLogs(string? token, int take);
     DashboardSnapshotDto GetDashboard(string? token);
     IReadOnlyList<ProductListItemDto> GetProducts(string? token);
+    IReadOnlyList<MaterialListItemDto> GetMaterials(string? token);
+    IReadOnlyList<SupplierListItemDto> GetSuppliers(string? token);
+    IReadOnlyList<PurchaseOrderListItemDto> GetPurchaseOrders(string? token);
+    PurchaseOrderListItemDto CreatePurchaseOrder(string? token, CreatePurchaseOrderRequest request);
+    PurchaseOrderListItemDto SubmitPurchaseOrder(string? token, Guid purchaseOrderId);
+    PurchaseOrderListItemDto ApprovePurchaseOrder(string? token, Guid purchaseOrderId);
+    GoodsReceiptListItemDto ReceivePurchaseOrder(string? token, Guid purchaseOrderId, ReceivePurchaseOrderRequest request);
+    IReadOnlyList<GoodsReceiptListItemDto> GetGoodsReceipts(string? token);
     IReadOnlyList<CustomerListItemDto> GetCustomers(string? token);
     CustomerListItemDto CreateCustomer(string? token, CreateCustomerRequest request);
     IReadOnlyList<SalesOrderListItemDto> GetSalesOrders(string? token);
@@ -205,6 +327,8 @@ public interface IManufacturingRuntime
     SalesOrderListItemDto SubmitSalesOrder(string? token, Guid salesOrderId);
     SalesOrderListItemDto ApproveSalesOrder(string? token, Guid salesOrderId);
     SalesOrderListItemDto ReleaseSalesOrder(string? token, Guid salesOrderId);
+    IReadOnlyList<SalesShipmentListItemDto> GetSalesShipments(string? token);
+    SalesShipmentListItemDto ShipSalesOrder(string? token, ShipSalesOrderRequest request);
     IReadOnlyList<ProductionOrderListItemDto> GetProductionOrders(string? token);
     ProductionOrderListItemDto ReleaseProductionOrderToMes(string? token, Guid productionOrderId);
     IReadOnlyList<WorkOrderListItemDto> GetWorkOrders(string? token);
@@ -214,7 +338,14 @@ public interface IManufacturingRuntime
     IReadOnlyList<InventoryBalanceDto> GetInventoryBalances(string? token);
     IReadOnlyList<CostLedgerItemDto> GetCostLedgers(string? token);
     IReadOnlyList<AccountingBridgeItemDto> GetAccountingBridges(string? token);
+    AccountingBridgeItemDto UpdateAccountingBridgeState(string? token, Guid accountingBridgeId, UpdateAccountingBridgeStateRequest request);
     IReadOnlyList<QualityInspectionItemDto> GetQualityInspections(string? token);
     QualityInspectionItemDto CompleteQualityInspection(string? token, Guid inspectionId, CompleteQualityInspectionRequest request);
     AiManagementSummaryDto GenerateManagementSummary(string? token);
+    IReadOnlyList<ExternalSystemStatusDto> GetExternalSystems(string? token);
+    IReadOnlyList<AccountingExportBatchDto> GetAccountingExportBatches(string? token);
+    AccountingExportBatchDto CreateAccountingExportBatch(string? token, CreateAccountingExportBatchRequest request);
+    IntegrationJobItemDto DispatchAccountingExportBatch(string? token, Guid exportBatchId);
+    IReadOnlyList<IntegrationJobItemDto> GetIntegrationJobs(string? token);
+    IntegrationJobItemDto CompleteIntegrationJob(string? token, Guid integrationJobId, CompleteIntegrationJobRequest request);
 }

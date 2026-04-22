@@ -2,6 +2,7 @@ using ManufacturingPlatform.BuildingBlocks.Runtime;
 using ManufacturingPlatform.Host.Persistence;
 using ManufacturingPlatform.Modules.CRM.Domain;
 using ManufacturingPlatform.Modules.ERP.Domain;
+using ManufacturingPlatform.Modules.Integration.Domain;
 using ManufacturingPlatform.Modules.MES.Domain;
 using ManufacturingPlatform.Modules.Quality.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,7 @@ public sealed class EfManufacturingRuntime(
         ArgumentNullException.ThrowIfNull(request);
 
         var user = _dbContext.Users
+            .AsSplitQuery()
             .Include(entity => entity.Department)
             .Include(entity => entity.UserRoles)
                 .ThenInclude(entity => entity.Role)
@@ -87,6 +89,7 @@ public sealed class EfManufacturingRuntime(
 
         var logs = _dbContext.AuditLogs
             .AsNoTracking()
+            .AsEnumerable()
             .OrderByDescending(entity => entity.OccurredAt)
             .Take(limit)
             .ToArray();
@@ -108,6 +111,12 @@ public sealed class EfManufacturingRuntime(
     {
         RequirePermission(token, "reporting.dashboard.read");
 
+        return BuildDashboardSnapshot();
+    }
+
+    private DashboardSnapshotDto BuildDashboardSnapshot()
+    {
+
         var activeSalesOrders = _dbContext.SalesOrders.Count(entity => entity.State != SalesOrderState.Cancelled && entity.State != SalesOrderState.Closed);
         var activeProductionOrders = _dbContext.ProductionOrders.Count(entity => entity.State != ProductionOrderState.Cancelled && entity.State != ProductionOrderState.Closed);
         var activeWorkOrders = _dbContext.WorkOrders.Count(entity =>
@@ -115,14 +124,25 @@ public sealed class EfManufacturingRuntime(
             entity.State == WorkOrderState.Dispatched ||
             entity.State == WorkOrderState.Started ||
             entity.State == WorkOrderState.Paused);
+        var openSalesAmount = _dbContext.SalesOrders
+            .AsNoTracking()
+            .Where(entity => entity.State != SalesOrderState.Cancelled && entity.State != SalesOrderState.Closed)
+            .Select(entity => entity.TotalAmount)
+            .AsEnumerable()
+            .Sum();
+        var reportedGoodQuantity = _dbContext.WorkOrders
+            .AsNoTracking()
+            .Select(entity => entity.GoodQuantity)
+            .AsEnumerable()
+            .Sum();
 
         var metrics = new DashboardMetricsDto(
             _dbContext.Customers.Count(),
             activeSalesOrders,
             activeProductionOrders,
             activeWorkOrders,
-            _dbContext.SalesOrders.Where(entity => entity.State != SalesOrderState.Cancelled && entity.State != SalesOrderState.Closed).Sum(entity => entity.TotalAmount),
-            _dbContext.WorkOrders.Sum(entity => entity.GoodQuantity),
+            openSalesAmount,
+            reportedGoodQuantity,
             _dbContext.QualityInspections.Count(entity => entity.State == InspectionRecordState.InInspection || entity.State == InspectionRecordState.SampleCollected || entity.State == InspectionRecordState.Planned),
             _dbContext.InventoryTransactions.Select(entity => entity.ItemCode).Distinct().Count(),
             _dbContext.AccountingBridgeEntries.Count(entity => entity.State == AccountingBridgeState.ReadyForExport));
@@ -161,6 +181,7 @@ public sealed class EfManufacturingRuntime(
 
         var activity = _dbContext.AuditLogs
             .AsNoTracking()
+            .AsEnumerable()
             .OrderByDescending(entity => entity.OccurredAt)
             .Take(8)
             .Select(entity => new ActivityFeedItemDto(entity.OccurredAt, entity.Module, entity.Detail))
@@ -177,6 +198,225 @@ public sealed class EfManufacturingRuntime(
             .AsNoTracking()
             .OrderBy(entity => entity.Code)
             .Select(entity => new ProductListItemDto(entity.Id, entity.Code, entity.Name, entity.ProductFamily, entity.BaseUnitCode))
+            .ToArray();
+    }
+
+    public IReadOnlyList<MaterialListItemDto> GetMaterials(string? token)
+    {
+        RequirePermission(token, "erp.product.read");
+
+        return _dbContext.Materials
+            .AsNoTracking()
+            .OrderBy(entity => entity.Code)
+            .Select(entity => new MaterialListItemDto(
+                entity.Id,
+                entity.Code,
+                entity.Name,
+                entity.BaseUnitCode,
+                entity.StandardUnitCost,
+                entity.ReorderLevel))
+            .ToArray();
+    }
+
+    public IReadOnlyList<SupplierListItemDto> GetSuppliers(string? token)
+    {
+        RequirePermission(token, "erp.supplier.read");
+
+        return _dbContext.Suppliers
+            .AsNoTracking()
+            .OrderBy(entity => entity.Code)
+            .Select(entity => new SupplierListItemDto(
+                entity.Id,
+                entity.Code,
+                entity.Name,
+                entity.Category,
+                entity.TaxRegistrationNumber,
+                entity.LeadTimeDays,
+                entity.PaymentTerms))
+            .ToArray();
+    }
+
+    public IReadOnlyList<PurchaseOrderListItemDto> GetPurchaseOrders(string? token)
+    {
+        RequirePermission(token, "erp.purchase-order.read");
+
+        return _dbContext.PurchaseOrders
+            .AsNoTracking()
+            .Include(entity => entity.Supplier)
+            .Include(entity => entity.Material)
+            .Include(entity => entity.Warehouse)
+            .OrderByDescending(entity => entity.OrderedOn)
+            .ThenByDescending(entity => entity.OrderNumber)
+            .ToArray()
+            .Select(MapPurchaseOrder)
+            .ToArray();
+    }
+
+    public PurchaseOrderListItemDto CreatePurchaseOrder(string? token, CreatePurchaseOrderRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var userContext = RequirePermission(token, "erp.purchase-order.write");
+        var supplier = FindSupplier(request.SupplierId);
+        var material = FindMaterialByCode(request.MaterialCode);
+        var warehouse = FindWarehouseByCode(request.WarehouseCode);
+
+        if (request.OrderedQuantity <= 0 || request.UnitPrice <= 0)
+        {
+            throw new RuntimeValidationException("Ordered quantity and unit price must be greater than zero.");
+        }
+
+        var purchaseOrder = new PurchaseOrderEntity
+        {
+            Id = Guid.NewGuid(),
+            OrderNumber = NextPurchaseOrderNumber(),
+            SupplierId = supplier.Id,
+            MaterialId = material.Id,
+            WarehouseId = warehouse.Id,
+            State = PurchaseOrderState.Draft,
+            OrderedQuantity = request.OrderedQuantity,
+            ReceivedQuantity = 0m,
+            UnitPrice = request.UnitPrice,
+            TotalAmount = decimal.Round(request.OrderedQuantity * request.UnitPrice, 2),
+            OrderedOn = DateOnly.FromDateTime(DateTime.UtcNow),
+            ExpectedReceiptDate = request.ExpectedReceiptDate
+        };
+
+        _dbContext.PurchaseOrders.Add(purchaseOrder);
+        AddAudit("ERP", "PurchaseOrderCreated", $"Created purchase order {purchaseOrder.OrderNumber} for {material.Code}.", userContext.UserName, userContext.UserId);
+        _dbContext.SaveChanges();
+
+        purchaseOrder.Supplier = supplier;
+        purchaseOrder.Material = material;
+        purchaseOrder.Warehouse = warehouse;
+        return MapPurchaseOrder(purchaseOrder);
+    }
+
+    public PurchaseOrderListItemDto SubmitPurchaseOrder(string? token, Guid purchaseOrderId)
+    {
+        var userContext = RequirePermission(token, "erp.purchase-order.write");
+        var purchaseOrder = FindPurchaseOrder(purchaseOrderId);
+
+        if (purchaseOrder.State != PurchaseOrderState.Draft)
+        {
+            throw new RuntimeValidationException("Only draft purchase orders can be submitted.");
+        }
+
+        purchaseOrder.State = PurchaseOrderState.Submitted;
+        AddAudit("ERP", "PurchaseOrderSubmitted", $"Submitted purchase order {purchaseOrder.OrderNumber} for approval.", userContext.UserName, userContext.UserId);
+        _dbContext.SaveChanges();
+
+        return MapPurchaseOrder(purchaseOrder);
+    }
+
+    public PurchaseOrderListItemDto ApprovePurchaseOrder(string? token, Guid purchaseOrderId)
+    {
+        var userContext = RequirePermission(token, "erp.purchase-order.approve");
+        var purchaseOrder = FindPurchaseOrder(purchaseOrderId);
+
+        if (purchaseOrder.State != PurchaseOrderState.Submitted)
+        {
+            throw new RuntimeValidationException("Only submitted purchase orders can be approved.");
+        }
+
+        purchaseOrder.State = PurchaseOrderState.Approved;
+        AddAudit("ERP", "PurchaseOrderApproved", $"Approved purchase order {purchaseOrder.OrderNumber}.", userContext.UserName, userContext.UserId);
+        _dbContext.SaveChanges();
+
+        return MapPurchaseOrder(purchaseOrder);
+    }
+
+    public GoodsReceiptListItemDto ReceivePurchaseOrder(string? token, Guid purchaseOrderId, ReceivePurchaseOrderRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var userContext = RequirePermission(token, "erp.goods-receipt.write");
+        var purchaseOrder = FindPurchaseOrder(purchaseOrderId);
+
+        if (purchaseOrder.State != PurchaseOrderState.Approved &&
+            purchaseOrder.State != PurchaseOrderState.Released &&
+            purchaseOrder.State != PurchaseOrderState.PartiallyReceived)
+        {
+            throw new RuntimeValidationException("Only approved, released, or partially received purchase orders can be received.");
+        }
+
+        if (request.ReceivedQuantity <= 0)
+        {
+            throw new RuntimeValidationException("Received quantity must be greater than zero.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.BatchNumber))
+        {
+            throw new RuntimeValidationException("A batch number is required for received material.");
+        }
+
+        var remainingQuantity = purchaseOrder.OrderedQuantity - purchaseOrder.ReceivedQuantity;
+        if (request.ReceivedQuantity > remainingQuantity)
+        {
+            throw new RuntimeValidationException("Received quantity cannot exceed the outstanding purchase order quantity.");
+        }
+
+        var receipt = new GoodsReceiptEntity
+        {
+            Id = Guid.NewGuid(),
+            ReceiptNumber = NextGoodsReceiptNumber(),
+            PurchaseOrderId = purchaseOrder.Id,
+            WarehouseId = purchaseOrder.WarehouseId,
+            State = GoodsReceiptState.Accepted,
+            QualityStatus = InventoryQualityStatus.Released,
+            ReceivedQuantity = request.ReceivedQuantity,
+            UnitCost = purchaseOrder.UnitPrice,
+            BatchNumber = request.BatchNumber.Trim(),
+            ReceivedOn = DateOnly.FromDateTime(DateTime.UtcNow)
+        };
+
+        purchaseOrder.ReceivedQuantity += request.ReceivedQuantity;
+        purchaseOrder.State = purchaseOrder.ReceivedQuantity >= purchaseOrder.OrderedQuantity
+            ? PurchaseOrderState.Completed
+            : PurchaseOrderState.PartiallyReceived;
+
+        _dbContext.GoodsReceipts.Add(receipt);
+        _dbContext.InventoryTransactions.Add(new InventoryTransactionEntity
+        {
+            Id = Guid.NewGuid(),
+            TransactionNumber = NextInventoryTransactionNumber(),
+            TransactionType = InventoryTransactionType.GoodsReceipt,
+            WarehouseId = purchaseOrder.WarehouseId,
+            ItemCode = purchaseOrder.Material!.Code,
+            Quantity = request.ReceivedQuantity,
+            BatchNumber = receipt.BatchNumber,
+            UnitCost = purchaseOrder.UnitPrice,
+            TotalCost = decimal.Round(request.ReceivedQuantity * purchaseOrder.UnitPrice, 2),
+            QualityStatus = InventoryQualityStatus.Released,
+            SourceDocumentNumber = receipt.ReceiptNumber,
+            SourceEvent = "Approved purchase receipt",
+            OccurredAt = DateTimeOffset.UtcNow
+        });
+
+        _dbContext.AccountingBridgeEntries.Add(
+            AccountingBridge(receipt.ReceiptNumber, "Purchase receipt accrual", decimal.Round(request.ReceivedQuantity * purchaseOrder.UnitPrice, 2), "AP-GRNI"));
+
+        AddAudit("ERP", "GoodsReceiptCreated", $"Received {request.ReceivedQuantity} of {purchaseOrder.Material.Code} on {receipt.ReceiptNumber}.", userContext.UserName, userContext.UserId);
+        _dbContext.SaveChanges();
+
+        receipt.PurchaseOrder = purchaseOrder;
+        receipt.Warehouse = purchaseOrder.Warehouse;
+        return MapGoodsReceipt(receipt);
+    }
+
+    public IReadOnlyList<GoodsReceiptListItemDto> GetGoodsReceipts(string? token)
+    {
+        RequirePermission(token, "erp.purchase-order.read");
+
+        return _dbContext.GoodsReceipts
+            .AsNoTracking()
+            .Include(entity => entity.PurchaseOrder)
+                .ThenInclude(entity => entity!.Supplier)
+            .Include(entity => entity.PurchaseOrder)
+                .ThenInclude(entity => entity!.Material)
+            .Include(entity => entity.Warehouse)
+            .OrderByDescending(entity => entity.ReceivedOn)
+            .ThenByDescending(entity => entity.ReceiptNumber)
+            .ToArray()
+            .Select(MapGoodsReceipt)
             .ToArray();
     }
 
@@ -259,7 +499,7 @@ public sealed class EfManufacturingRuntime(
         var salesOrder = new SalesOrderEntity
         {
             Id = Guid.NewGuid(),
-            OrderNumber = NextNumber("SO", _dbContext.SalesOrders.Count() + 1),
+            OrderNumber = NextSalesOrderNumber(),
             CustomerId = customer.Id,
             ProductCode = product.Code,
             Quantity = request.Quantity,
@@ -331,7 +571,7 @@ public sealed class EfManufacturingRuntime(
             var productionOrder = new ProductionOrderEntity
             {
                 Id = Guid.NewGuid(),
-                ProductionOrderNumber = NextNumber("MO", _dbContext.ProductionOrders.Count() + 1),
+                ProductionOrderNumber = NextProductionOrderNumber(),
                 SalesOrderId = salesOrder.Id,
                 State = ProductionOrderState.Approved,
                 ProductCode = salesOrder.ProductCode,
@@ -356,6 +596,132 @@ public sealed class EfManufacturingRuntime(
 
         salesOrder.Customer = FindCustomer(salesOrder.CustomerId);
         return MapSalesOrder(salesOrder);
+    }
+
+    public IReadOnlyList<SalesShipmentListItemDto> GetSalesShipments(string? token)
+    {
+        RequirePermission(token, "erp.shipment.read");
+
+        return _dbContext.SalesShipments
+            .AsNoTracking()
+            .Include(entity => entity.SalesOrder)
+                .ThenInclude(entity => entity!.Customer)
+            .Include(entity => entity.Warehouse)
+            .OrderByDescending(entity => entity.ShippedOn)
+            .ThenByDescending(entity => entity.ShipmentNumber)
+            .ToArray()
+            .Select(MapShipment)
+            .ToArray();
+    }
+
+    public SalesShipmentListItemDto ShipSalesOrder(string? token, ShipSalesOrderRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var userContext = RequirePermission(token, "erp.shipment.write");
+        var salesOrder = FindSalesOrder(request.SalesOrderId);
+        var warehouse = FindWarehouseByCode(request.WarehouseCode);
+
+        if (salesOrder.State != SalesOrderState.Released &&
+            salesOrder.State != SalesOrderState.PartiallyFulfilled)
+        {
+            throw new RuntimeValidationException("Only released or partially fulfilled sales orders can be shipped.");
+        }
+
+        if (request.ShippedQuantity <= 0)
+        {
+            throw new RuntimeValidationException("Shipped quantity must be greater than zero.");
+        }
+
+        var shippedSoFar = _dbContext.SalesShipments
+            .Where(entity => entity.SalesOrderId == salesOrder.Id && entity.State != SalesShipmentState.Cancelled)
+            .Select(entity => entity.ShippedQuantity)
+            .AsEnumerable()
+            .Sum();
+
+        var remainingDemand = salesOrder.Quantity - shippedSoFar;
+        if (request.ShippedQuantity > remainingDemand)
+        {
+            throw new RuntimeValidationException("Shipment quantity cannot exceed the outstanding sales order quantity.");
+        }
+
+        var batchBalances = _dbContext.InventoryTransactions
+            .AsNoTracking()
+            .Where(entity =>
+                entity.WarehouseId == warehouse.Id &&
+                entity.ItemCode == salesOrder.ProductCode &&
+                (entity.QualityStatus == InventoryQualityStatus.Released || entity.QualityStatus == InventoryQualityStatus.ConditionalRelease))
+            .AsEnumerable()
+            .GroupBy(entity => entity.BatchNumber ?? "UNBATCHED")
+            .Select(group => new
+            {
+                BatchNumber = group.Key,
+                Quantity = group.Sum(entity => entity.Quantity),
+                UnitCost = group.Where(entity => entity.Quantity > 0).Select(entity => entity.UnitCost).DefaultIfEmpty(0m).Average()
+            })
+            .Where(group => group.Quantity > 0)
+            .OrderByDescending(group => group.Quantity)
+            .ToArray();
+
+        var batch = batchBalances.FirstOrDefault(group => group.Quantity >= request.ShippedQuantity);
+        if (batch is null)
+        {
+            throw new RuntimeValidationException("No released finished-goods batch has enough available quantity for this shipment.");
+        }
+
+        var shipment = new SalesShipmentEntity
+        {
+            Id = Guid.NewGuid(),
+            ShipmentNumber = NextSalesShipmentNumber(),
+            SalesOrderId = salesOrder.Id,
+            WarehouseId = warehouse.Id,
+            State = SalesShipmentState.Shipped,
+            ShippedQuantity = request.ShippedQuantity,
+            BatchNumber = batch.BatchNumber,
+            UnitPrice = salesOrder.UnitPrice,
+            ShippedOn = DateOnly.FromDateTime(DateTime.UtcNow)
+        };
+
+        var shipmentValue = decimal.Round(request.ShippedQuantity * salesOrder.UnitPrice, 2);
+        var shipmentCost = decimal.Round(request.ShippedQuantity * batch.UnitCost, 2);
+
+        _dbContext.SalesShipments.Add(shipment);
+        _dbContext.InventoryTransactions.Add(new InventoryTransactionEntity
+        {
+            Id = Guid.NewGuid(),
+            TransactionNumber = NextInventoryTransactionNumber(),
+            TransactionType = InventoryTransactionType.SalesShipment,
+            WarehouseId = warehouse.Id,
+            ItemCode = salesOrder.ProductCode,
+            Quantity = -request.ShippedQuantity,
+            BatchNumber = batch.BatchNumber,
+            UnitCost = batch.UnitCost,
+            TotalCost = -shipmentCost,
+            QualityStatus = InventoryQualityStatus.Released,
+            SourceDocumentNumber = shipment.ShipmentNumber,
+            SourceEvent = "Customer shipment",
+            OccurredAt = DateTimeOffset.UtcNow
+        });
+
+        var shipmentBridgeSequence = NextNumberSequence(
+            "BR",
+            _dbContext.AccountingBridgeEntries.AsNoTracking().Select(entity => entity.BridgeNumber).AsEnumerable(),
+            _dbContext.AccountingBridgeEntries.Local.Select(entity => entity.BridgeNumber));
+
+        _dbContext.AccountingBridgeEntries.AddRange(
+            AccountingBridge(shipment.ShipmentNumber, "Sales shipment revenue", shipmentValue, "AR-SHIP", shipmentBridgeSequence),
+            AccountingBridge(shipment.ShipmentNumber, "Sales shipment COGS", shipmentCost, "COGS", shipmentBridgeSequence + 1));
+
+        var totalShipped = shippedSoFar + request.ShippedQuantity;
+        salesOrder.State = totalShipped >= salesOrder.Quantity
+            ? SalesOrderState.Completed
+            : SalesOrderState.PartiallyFulfilled;
+
+        AddAudit("ERP", "SalesShipmentCreated", $"Shipped {request.ShippedQuantity} of {salesOrder.ProductCode} on {shipment.ShipmentNumber}.", userContext.UserName, userContext.UserId);
+        _dbContext.SaveChanges();
+
+        shipment.SalesOrder = salesOrder;
+        shipment.Warehouse = warehouse;
+        return MapShipment(shipment);
     }
 
     public IReadOnlyList<ProductionOrderListItemDto> GetProductionOrders(string? token)
@@ -389,7 +755,7 @@ public sealed class EfManufacturingRuntime(
             var workOrder = new WorkOrderEntity
             {
                 Id = Guid.NewGuid(),
-                WorkOrderNumber = NextNumber("WO", _dbContext.WorkOrders.Count() + 1),
+                WorkOrderNumber = NextWorkOrderNumber(),
                 ProductionOrderId = productionOrder.Id,
                 State = WorkOrderState.Created,
                 ProductCode = productionOrder.ProductCode,
@@ -559,7 +925,7 @@ public sealed class EfManufacturingRuntime(
             _dbContext.InventoryTransactions.Add(new InventoryTransactionEntity
             {
                 Id = Guid.NewGuid(),
-                TransactionNumber = NextNumber("ITX", _dbContext.InventoryTransactions.Count() + 1),
+                TransactionNumber = NextInventoryTransactionNumber(),
                 TransactionType = InventoryTransactionType.ProductionIssue,
                 WarehouseId = rawMaterialWarehouse.Id,
                 ItemCode = component.Material.Code,
@@ -596,7 +962,7 @@ public sealed class EfManufacturingRuntime(
             _dbContext.InventoryTransactions.Add(new InventoryTransactionEntity
             {
                 Id = Guid.NewGuid(),
-                TransactionNumber = NextNumber("ITX", _dbContext.InventoryTransactions.Count() + 1),
+                TransactionNumber = NextInventoryTransactionNumber(),
                 TransactionType = InventoryTransactionType.ProductionReceipt,
                 WarehouseId = warehouse.Id,
                 ItemCode = product.Code,
@@ -614,7 +980,7 @@ public sealed class EfManufacturingRuntime(
         _dbContext.QualityInspections.Add(new QualityInspectionEntity
         {
             Id = Guid.NewGuid(),
-            InspectionNumber = NextNumber("QI", _dbContext.QualityInspections.Count() + 1),
+            InspectionNumber = NextInspectionNumber(),
             InspectionType = InspectionType.Final,
             WorkOrderId = workOrder.Id,
             ProductionOrderId = productionOrder.Id,
@@ -628,10 +994,15 @@ public sealed class EfManufacturingRuntime(
             CreatedAt = DateTimeOffset.UtcNow
         });
 
+        var workOrderBridgeSequence = NextNumberSequence(
+            "BR",
+            _dbContext.AccountingBridgeEntries.AsNoTracking().Select(entity => entity.BridgeNumber).AsEnumerable(),
+            _dbContext.AccountingBridgeEntries.Local.Select(entity => entity.BridgeNumber));
+
         _dbContext.AccountingBridgeEntries.AddRange(
-            AccountingBridge(workOrder.WorkOrderNumber, "WIP consumption", materialCost + laborCost + machineCost + overheadCost, "WIP-MFG"),
-            AccountingBridge(workOrder.WorkOrderNumber, "FG receipt pending inspection", decimal.Round(request.GoodQuantity * unitCost, 2), "FG-READY"),
-            AccountingBridge(workOrder.WorkOrderNumber, "Scrap loss", scrapCost, "SCRAP-LOSS"));
+            AccountingBridge(workOrder.WorkOrderNumber, "WIP consumption", materialCost + laborCost + machineCost + overheadCost, "WIP-MFG", workOrderBridgeSequence),
+            AccountingBridge(workOrder.WorkOrderNumber, "FG receipt pending inspection", decimal.Round(request.GoodQuantity * unitCost, 2), "FG-READY", workOrderBridgeSequence + 1),
+            AccountingBridge(workOrder.WorkOrderNumber, "Scrap loss", scrapCost, "SCRAP-LOSS", workOrderBridgeSequence + 2));
 
         AddAudit("MES", "WorkOrderReported", $"Reported work order {workOrder.WorkOrderNumber}: good {request.GoodQuantity}, scrap {request.ScrapQuantity}.", userContext.UserName, userContext.UserId);
         AddAudit("ERP", "CostPosted", $"Posted actual cost entries for work order {workOrder.WorkOrderNumber}.", userContext.UserName, userContext.UserId);
@@ -713,8 +1084,14 @@ public sealed class EfManufacturingRuntime(
     {
         RequirePermission(token, "erp.cost.read");
 
+        return ListAccountingBridges();
+    }
+
+    private IReadOnlyList<AccountingBridgeItemDto> ListAccountingBridges()
+    {
         return _dbContext.AccountingBridgeEntries
             .AsNoTracking()
+            .AsEnumerable()
             .OrderByDescending(entity => entity.GeneratedAt)
             .Select(entity => new AccountingBridgeItemDto(
                 entity.Id,
@@ -728,16 +1105,45 @@ public sealed class EfManufacturingRuntime(
             .ToArray();
     }
 
+    public AccountingBridgeItemDto UpdateAccountingBridgeState(string? token, Guid accountingBridgeId, UpdateAccountingBridgeStateRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var userContext = RequirePermission(token, "erp.accounting.manage");
+        var bridge = _dbContext.AccountingBridgeEntries.SingleOrDefault(entity => entity.Id == accountingBridgeId)
+            ?? throw new RuntimeNotFoundException($"Accounting bridge '{accountingBridgeId}' was not found.");
+
+        if (!Enum.TryParse<AccountingBridgeState>(request.TargetState, true, out var targetState))
+        {
+            throw new RuntimeValidationException($"Unsupported accounting bridge state '{request.TargetState}'.");
+        }
+
+        if (!IsAllowedAccountingBridgeTransition(bridge.State, targetState))
+        {
+            throw new RuntimeValidationException($"Cannot move accounting bridge from {bridge.State} to {targetState}.");
+        }
+
+        bridge.State = targetState;
+        AddAudit("ERP", "AccountingBridgeUpdated", $"Moved accounting bridge {bridge.BridgeNumber} to {targetState}.", userContext.UserName, userContext.UserId);
+        _dbContext.SaveChanges();
+
+        return MapAccountingBridge(bridge);
+    }
+
     public IReadOnlyList<QualityInspectionItemDto> GetQualityInspections(string? token)
     {
         RequirePermission(token, "quality.inspection.read");
 
+        return ListQualityInspections();
+    }
+
+    private IReadOnlyList<QualityInspectionItemDto> ListQualityInspections()
+    {
         return _dbContext.QualityInspections
             .AsNoTracking()
             .Include(entity => entity.WorkOrder)
             .Include(entity => entity.ProductionOrder)
+            .AsEnumerable()
             .OrderByDescending(entity => entity.CreatedAt)
-            .ToArray()
             .Select(MapInspection)
             .ToArray();
     }
@@ -785,6 +1191,7 @@ public sealed class EfManufacturingRuntime(
         {
             QualityDisposition.Release => InventoryQualityStatus.Released,
             QualityDisposition.ConditionalRelease => InventoryQualityStatus.ConditionalRelease,
+            QualityDisposition.Hold or QualityDisposition.Rework => InventoryQualityStatus.Quarantined,
             _ => InventoryQualityStatus.Rejected
         };
 
@@ -814,9 +1221,9 @@ public sealed class EfManufacturingRuntime(
     public AiManagementSummaryDto GenerateManagementSummary(string? token)
     {
         var userContext = RequirePermission(token, "ai.summary.read");
-        var dashboard = GetDashboard(token);
-        var inspections = GetQualityInspections(token);
-        var accountingBridges = GetAccountingBridges(token);
+        var dashboard = BuildDashboardSnapshot();
+        var inspections = ListQualityInspections();
+        var accountingBridges = ListAccountingBridges();
 
         var summary = _aiSummaryService.GenerateSummary(
             dashboard.Metrics,
@@ -841,6 +1248,201 @@ public sealed class EfManufacturingRuntime(
         return summary;
     }
 
+    public IReadOnlyList<ExternalSystemStatusDto> GetExternalSystems(string? token)
+    {
+        RequirePermission(token, "integration.read");
+
+        return _dbContext.ExternalSystems
+            .AsNoTracking()
+            .OrderBy(entity => entity.SystemCode)
+            .Select(entity => new ExternalSystemStatusDto(
+                entity.Id,
+                entity.SystemCode,
+                entity.Name,
+                entity.BaseUrl,
+                entity.IsEnabled,
+                entity.HealthStatus.ToString(),
+                entity.LastCheckedAt))
+            .ToArray();
+    }
+
+    public IReadOnlyList<AccountingExportBatchDto> GetAccountingExportBatches(string? token)
+    {
+        RequirePermission(token, "integration.read");
+
+        return _dbContext.AccountingExportBatches
+            .AsNoTracking()
+            .AsEnumerable()
+            .OrderByDescending(entity => entity.CreatedAt)
+            .Select(MapAccountingExportBatch)
+            .ToArray();
+    }
+
+    public AccountingExportBatchDto CreateAccountingExportBatch(string? token, CreateAccountingExportBatchRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var userContext = RequirePermission(token, "integration.manage");
+        var externalSystem = FindExternalSystem(request.TargetSystemCode);
+
+        if (!externalSystem.IsEnabled)
+        {
+            throw new RuntimeValidationException($"External system '{externalSystem.SystemCode}' is disabled.");
+        }
+
+        var readyBridges = _dbContext.AccountingBridgeEntries
+            .Where(entity => entity.State == AccountingBridgeState.ReadyForExport && entity.ExportBatchId == null)
+            .ToArray()
+            .OrderBy(entity => entity.GeneratedAt)
+            .ToArray();
+
+        if (readyBridges.Length == 0)
+        {
+            throw new RuntimeValidationException("No unbatched accounting bridge entries are ready for export.");
+        }
+
+        var batch = new AccountingExportBatchEntity
+        {
+            Id = Guid.NewGuid(),
+            BatchNumber = NextAccountingExportBatchNumber(),
+            TargetSystemCode = externalSystem.SystemCode,
+            State = ExportBatchState.Prepared,
+            BridgeCount = readyBridges.Length,
+            TotalAmount = readyBridges.Sum(entity => entity.Amount),
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        _dbContext.AccountingExportBatches.Add(batch);
+
+        foreach (var bridge in readyBridges)
+        {
+            bridge.ExportBatchId = batch.Id;
+        }
+
+        AddAudit("Integration", "ExportBatchCreated", $"Prepared export batch {batch.BatchNumber} for {externalSystem.SystemCode} with {batch.BridgeCount} bridge entries.", userContext.UserName, userContext.UserId);
+        _dbContext.SaveChanges();
+
+        return MapAccountingExportBatch(batch);
+    }
+
+    public IntegrationJobItemDto DispatchAccountingExportBatch(string? token, Guid exportBatchId)
+    {
+        var userContext = RequirePermission(token, "integration.manage");
+        var batch = FindAccountingExportBatch(exportBatchId);
+
+        if (batch.State != ExportBatchState.Prepared && batch.State != ExportBatchState.Failed)
+        {
+            throw new RuntimeValidationException("Only prepared or failed export batches can be dispatched.");
+        }
+
+        var bridges = _dbContext.AccountingBridgeEntries
+            .Where(entity => entity.ExportBatchId == batch.Id)
+            .ToArray();
+
+        if (bridges.Length == 0)
+        {
+            throw new RuntimeValidationException("The export batch does not contain any accounting bridge entries.");
+        }
+
+        var job = new IntegrationJobEntity
+        {
+            Id = Guid.NewGuid(),
+            JobNumber = NextIntegrationJobNumber(),
+            TargetSystemCode = batch.TargetSystemCode,
+            JobType = "AccountingBridgeExport",
+            State = IntegrationJobState.Sent,
+            ExportBatchId = batch.Id,
+            PayloadSummary = $"{batch.BridgeCount} bridges / {batch.TotalAmount:0.##} CNY",
+            QueuedAt = DateTimeOffset.UtcNow
+        };
+
+        batch.State = ExportBatchState.Sent;
+        batch.SentAt = job.QueuedAt;
+        batch.CompletedAt = null;
+
+        foreach (var bridge in bridges)
+        {
+            bridge.State = AccountingBridgeState.Exported;
+        }
+
+        _dbContext.IntegrationJobs.Add(job);
+        AddAudit("Integration", "ExportBatchDispatched", $"Dispatched export batch {batch.BatchNumber} to {batch.TargetSystemCode} as job {job.JobNumber}.", userContext.UserName, userContext.UserId);
+        _dbContext.SaveChanges();
+
+        job.ExportBatch = batch;
+        return MapIntegrationJob(job);
+    }
+
+    public IReadOnlyList<IntegrationJobItemDto> GetIntegrationJobs(string? token)
+    {
+        RequirePermission(token, "integration.read");
+
+        return _dbContext.IntegrationJobs
+            .AsNoTracking()
+            .Include(entity => entity.ExportBatch)
+            .AsEnumerable()
+            .OrderByDescending(entity => entity.QueuedAt)
+            .Select(MapIntegrationJob)
+            .ToArray();
+    }
+
+    public IntegrationJobItemDto CompleteIntegrationJob(string? token, Guid integrationJobId, CompleteIntegrationJobRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var userContext = RequirePermission(token, "integration.manage");
+        var job = _dbContext.IntegrationJobs
+            .Include(entity => entity.ExportBatch)
+            .SingleOrDefault(entity => entity.Id == integrationJobId)
+            ?? throw new RuntimeNotFoundException($"Integration job '{integrationJobId}' was not found.");
+
+        if (!Enum.TryParse<IntegrationJobState>(request.Outcome, true, out var outcome) ||
+            (outcome != IntegrationJobState.Succeeded && outcome != IntegrationJobState.Failed))
+        {
+            throw new RuntimeValidationException($"Unsupported integration outcome '{request.Outcome}'.");
+        }
+
+        if (job.State != IntegrationJobState.Sent && job.State != IntegrationJobState.Queued)
+        {
+            throw new RuntimeValidationException("Only queued or sent integration jobs can be completed.");
+        }
+
+        job.State = outcome;
+        job.CompletedAt = DateTimeOffset.UtcNow;
+        job.LastError = outcome == IntegrationJobState.Failed ? request.ErrorMessage?.Trim() : null;
+
+        if (job.ExportBatchId.HasValue && job.ExportBatch is not null)
+        {
+            var bridges = _dbContext.AccountingBridgeEntries
+                .Where(entity => entity.ExportBatchId == job.ExportBatchId.Value)
+                .ToArray();
+
+            if (outcome == IntegrationJobState.Succeeded)
+            {
+                job.ExportBatch.State = ExportBatchState.Acknowledged;
+                job.ExportBatch.CompletedAt = job.CompletedAt;
+
+                foreach (var bridge in bridges)
+                {
+                    bridge.State = AccountingBridgeState.Posted;
+                }
+            }
+            else
+            {
+                job.ExportBatch.State = ExportBatchState.Failed;
+                job.ExportBatch.CompletedAt = job.CompletedAt;
+
+                foreach (var bridge in bridges)
+                {
+                    bridge.State = AccountingBridgeState.Failed;
+                }
+            }
+        }
+
+        AddAudit("Integration", "IntegrationJobCompleted", $"Completed integration job {job.JobNumber} with outcome {outcome}.", userContext.UserName, userContext.UserId);
+        _dbContext.SaveChanges();
+
+        return MapIntegrationJob(job);
+    }
+
     private SessionContext RequireSession(string? token)
     {
         if (string.IsNullOrWhiteSpace(token))
@@ -849,6 +1451,7 @@ public sealed class EfManufacturingRuntime(
         }
 
         var session = _dbContext.Sessions
+            .AsSplitQuery()
             .Include(entity => entity.User)
                 .ThenInclude(entity => entity!.Department)
             .Include(entity => entity.User)
@@ -892,15 +1495,58 @@ public sealed class EfManufacturingRuntime(
             ?? throw new RuntimeNotFoundException($"Customer '{customerId}' was not found.");
     }
 
+    private SupplierEntity FindSupplier(Guid supplierId)
+    {
+        return _dbContext.Suppliers.SingleOrDefault(entity => entity.Id == supplierId)
+            ?? throw new RuntimeNotFoundException($"Supplier '{supplierId}' was not found.");
+    }
+
+    private ExternalSystemEntity FindExternalSystem(string systemCode)
+    {
+        return _dbContext.ExternalSystems.SingleOrDefault(entity => entity.SystemCode.ToLower() == systemCode.Trim().ToLower())
+            ?? throw new RuntimeValidationException($"External system '{systemCode}' was not found.");
+    }
+
     private ProductEntity FindProductByCode(string productCode)
     {
         return _dbContext.Products.SingleOrDefault(entity => entity.Code.ToLower() == productCode.Trim().ToLower())
             ?? throw new RuntimeValidationException($"Product '{productCode}' was not found.");
     }
 
+    private MaterialEntity FindMaterialByCode(string materialCode)
+    {
+        return _dbContext.Materials.SingleOrDefault(entity => entity.Code.ToLower() == materialCode.Trim().ToLower())
+            ?? throw new RuntimeValidationException($"Material '{materialCode}' was not found.");
+    }
+
+    private WarehouseEntity FindWarehouseByCode(string warehouseCode)
+    {
+        return _dbContext.Warehouses.SingleOrDefault(entity => entity.Code.ToLower() == warehouseCode.Trim().ToLower())
+            ?? throw new RuntimeValidationException($"Warehouse '{warehouseCode}' was not found.");
+    }
+
+    private PurchaseOrderEntity FindPurchaseOrder(Guid purchaseOrderId)
+    {
+        return _dbContext.PurchaseOrders
+            .Include(entity => entity.Supplier)
+            .Include(entity => entity.Material)
+            .Include(entity => entity.Warehouse)
+            .SingleOrDefault(entity => entity.Id == purchaseOrderId)
+            ?? throw new RuntimeNotFoundException($"Purchase order '{purchaseOrderId}' was not found.");
+    }
+
+    private AccountingExportBatchEntity FindAccountingExportBatch(Guid exportBatchId)
+    {
+        return _dbContext.AccountingExportBatches.SingleOrDefault(entity => entity.Id == exportBatchId)
+            ?? throw new RuntimeNotFoundException($"Accounting export batch '{exportBatchId}' was not found.");
+    }
+
     private SalesOrderEntity FindSalesOrder(Guid salesOrderId)
     {
-        return _dbContext.SalesOrders.Include(entity => entity.Customer).SingleOrDefault(entity => entity.Id == salesOrderId)
+        return _dbContext.SalesOrders
+            .Include(entity => entity.Customer)
+            .Include(entity => entity.SalesShipments)
+            .SingleOrDefault(entity => entity.Id == salesOrderId)
             ?? throw new RuntimeNotFoundException($"Sales order '{salesOrderId}' was not found.");
     }
 
@@ -937,6 +1583,59 @@ public sealed class EfManufacturingRuntime(
         return new CustomerListItemDto(entity.Id, entity.Code, entity.Name, entity.Status.ToString(), entity.Segment.ToString(), entity.Region, entity.Industry, entity.CreditRating);
     }
 
+    private static SupplierListItemDto MapSupplier(SupplierEntity entity)
+    {
+        return new SupplierListItemDto(entity.Id, entity.Code, entity.Name, entity.Category, entity.TaxRegistrationNumber, entity.LeadTimeDays, entity.PaymentTerms);
+    }
+
+    private static AccountingExportBatchDto MapAccountingExportBatch(AccountingExportBatchEntity entity)
+    {
+        return new AccountingExportBatchDto(
+            entity.Id,
+            entity.BatchNumber,
+            entity.TargetSystemCode,
+            entity.State.ToString(),
+            entity.BridgeCount,
+            entity.TotalAmount,
+            entity.CreatedAt,
+            entity.SentAt,
+            entity.CompletedAt);
+    }
+
+    private static PurchaseOrderListItemDto MapPurchaseOrder(PurchaseOrderEntity entity)
+    {
+        return new PurchaseOrderListItemDto(
+            entity.Id,
+            entity.OrderNumber,
+            entity.SupplierId,
+            entity.Supplier!.Name,
+            entity.Material!.Code,
+            entity.OrderedQuantity,
+            entity.ReceivedQuantity,
+            entity.UnitPrice,
+            entity.TotalAmount,
+            entity.Warehouse!.Code,
+            entity.State.ToString(),
+            entity.OrderedOn,
+            entity.ExpectedReceiptDate);
+    }
+
+    private static GoodsReceiptListItemDto MapGoodsReceipt(GoodsReceiptEntity entity)
+    {
+        return new GoodsReceiptListItemDto(
+            entity.Id,
+            entity.ReceiptNumber,
+            entity.PurchaseOrder!.OrderNumber,
+            entity.PurchaseOrder.Supplier!.Name,
+            entity.PurchaseOrder.Material!.Code,
+            entity.ReceivedQuantity,
+            entity.Warehouse!.Code,
+            entity.QualityStatus.ToString(),
+            entity.State.ToString(),
+            entity.BatchNumber,
+            entity.ReceivedOn);
+    }
+
     private SalesOrderListItemDto MapSalesOrder(SalesOrderEntity entity)
     {
         var productionOrderNumber = entity.ProductionOrderId.HasValue
@@ -956,6 +1655,36 @@ public sealed class EfManufacturingRuntime(
             entity.OrderDate,
             entity.RequestedDeliveryDate,
             productionOrderNumber);
+    }
+
+    private static SalesShipmentListItemDto MapShipment(SalesShipmentEntity entity)
+    {
+        return new SalesShipmentListItemDto(
+            entity.Id,
+            entity.ShipmentNumber,
+            entity.SalesOrder!.OrderNumber,
+            entity.SalesOrder.Customer!.Name,
+            entity.SalesOrder.ProductCode,
+            entity.ShippedQuantity,
+            entity.Warehouse!.Code,
+            entity.BatchNumber,
+            entity.State.ToString(),
+            entity.ShippedOn);
+    }
+
+    private static IntegrationJobItemDto MapIntegrationJob(IntegrationJobEntity entity)
+    {
+        return new IntegrationJobItemDto(
+            entity.Id,
+            entity.JobNumber,
+            entity.TargetSystemCode,
+            entity.JobType,
+            entity.State.ToString(),
+            entity.ExportBatch?.BatchNumber,
+            entity.PayloadSummary,
+            entity.QueuedAt,
+            entity.CompletedAt,
+            entity.LastError);
     }
 
     private ProductionOrderListItemDto MapProductionOrder(ProductionOrderEntity entity)
@@ -1025,6 +1754,19 @@ public sealed class EfManufacturingRuntime(
             entity.Notes);
     }
 
+    private static AccountingBridgeItemDto MapAccountingBridge(AccountingBridgeEntryEntity entity)
+    {
+        return new AccountingBridgeItemDto(
+            entity.Id,
+            entity.BridgeNumber,
+            entity.SourceDocumentNumber,
+            entity.SourceEvent,
+            entity.Amount,
+            entity.PostingAccount,
+            entity.State.ToString(),
+            entity.GeneratedAt);
+    }
+
     private static IEnumerable<WorkOrderOperationEntity> CreateOperations(Guid workOrderId)
     {
         return
@@ -1084,12 +1826,12 @@ public sealed class EfManufacturingRuntime(
         };
     }
 
-    private AccountingBridgeEntryEntity AccountingBridge(string sourceDocumentNumber, string sourceEvent, decimal amount, string postingAccount)
+    private AccountingBridgeEntryEntity AccountingBridge(string sourceDocumentNumber, string sourceEvent, decimal amount, string postingAccount, int? sequenceOverride = null)
     {
         return new AccountingBridgeEntryEntity
         {
             Id = Guid.NewGuid(),
-            BridgeNumber = NextNumber("BR", _dbContext.AccountingBridgeEntries.Count() + 1),
+            BridgeNumber = sequenceOverride.HasValue ? FormatNumber("BR", sequenceOverride.Value) : NextAccountingBridgeNumber(),
             SourceDocumentNumber = sourceDocumentNumber,
             SourceEvent = sourceEvent,
             State = AccountingBridgeState.ReadyForExport,
@@ -1113,9 +1855,144 @@ public sealed class EfManufacturingRuntime(
         });
     }
 
-    private static string NextNumber(string prefix, int sequence)
+    private string NextSalesOrderNumber()
+    {
+        return NextNumber(
+            "SO",
+            _dbContext.SalesOrders.AsNoTracking().Select(entity => entity.OrderNumber).AsEnumerable(),
+            _dbContext.SalesOrders.Local.Select(entity => entity.OrderNumber));
+    }
+
+    private string NextPurchaseOrderNumber()
+    {
+        return NextNumber(
+            "PO",
+            _dbContext.PurchaseOrders.AsNoTracking().Select(entity => entity.OrderNumber).AsEnumerable(),
+            _dbContext.PurchaseOrders.Local.Select(entity => entity.OrderNumber));
+    }
+
+    private string NextGoodsReceiptNumber()
+    {
+        return NextNumber(
+            "GR",
+            _dbContext.GoodsReceipts.AsNoTracking().Select(entity => entity.ReceiptNumber).AsEnumerable(),
+            _dbContext.GoodsReceipts.Local.Select(entity => entity.ReceiptNumber));
+    }
+
+    private string NextSalesShipmentNumber()
+    {
+        return NextNumber(
+            "SH",
+            _dbContext.SalesShipments.AsNoTracking().Select(entity => entity.ShipmentNumber).AsEnumerable(),
+            _dbContext.SalesShipments.Local.Select(entity => entity.ShipmentNumber));
+    }
+
+    private string NextProductionOrderNumber()
+    {
+        return NextNumber(
+            "MO",
+            _dbContext.ProductionOrders.AsNoTracking().Select(entity => entity.ProductionOrderNumber).AsEnumerable(),
+            _dbContext.ProductionOrders.Local.Select(entity => entity.ProductionOrderNumber));
+    }
+
+    private string NextWorkOrderNumber()
+    {
+        return NextNumber(
+            "WO",
+            _dbContext.WorkOrders.AsNoTracking().Select(entity => entity.WorkOrderNumber).AsEnumerable(),
+            _dbContext.WorkOrders.Local.Select(entity => entity.WorkOrderNumber));
+    }
+
+    private string NextInventoryTransactionNumber()
+    {
+        return NextNumber(
+            "ITX",
+            _dbContext.InventoryTransactions.AsNoTracking().Select(entity => entity.TransactionNumber).AsEnumerable(),
+            _dbContext.InventoryTransactions.Local.Select(entity => entity.TransactionNumber));
+    }
+
+    private string NextInspectionNumber()
+    {
+        return NextNumber(
+            "QI",
+            _dbContext.QualityInspections.AsNoTracking().Select(entity => entity.InspectionNumber).AsEnumerable(),
+            _dbContext.QualityInspections.Local.Select(entity => entity.InspectionNumber));
+    }
+
+    private string NextAccountingBridgeNumber()
+    {
+        return NextNumber(
+            "BR",
+            _dbContext.AccountingBridgeEntries.AsNoTracking().Select(entity => entity.BridgeNumber).AsEnumerable(),
+            _dbContext.AccountingBridgeEntries.Local.Select(entity => entity.BridgeNumber));
+    }
+
+    private string NextAccountingExportBatchNumber()
+    {
+        return NextNumber(
+            "EB",
+            _dbContext.AccountingExportBatches.AsNoTracking().Select(entity => entity.BatchNumber).AsEnumerable(),
+            _dbContext.AccountingExportBatches.Local.Select(entity => entity.BatchNumber));
+    }
+
+    private string NextIntegrationJobNumber()
+    {
+        return NextNumber(
+            "IJ",
+            _dbContext.IntegrationJobs.AsNoTracking().Select(entity => entity.JobNumber).AsEnumerable(),
+            _dbContext.IntegrationJobs.Local.Select(entity => entity.JobNumber));
+    }
+
+    private static bool IsAllowedAccountingBridgeTransition(AccountingBridgeState currentState, AccountingBridgeState targetState)
+    {
+        if (currentState == targetState)
+        {
+            return true;
+        }
+
+        return currentState switch
+        {
+            AccountingBridgeState.ReadyForExport => targetState == AccountingBridgeState.Exported || targetState == AccountingBridgeState.Failed,
+            AccountingBridgeState.Exported => targetState == AccountingBridgeState.Posted || targetState == AccountingBridgeState.Failed,
+            AccountingBridgeState.Posted => targetState == AccountingBridgeState.Reconciled || targetState == AccountingBridgeState.Failed,
+            AccountingBridgeState.Failed => targetState == AccountingBridgeState.ReadyForExport,
+            _ => false
+        };
+    }
+
+    private static string NextNumber(string prefix, params IEnumerable<string?>[] numberSets)
+    {
+        return FormatNumber(prefix, NextNumberSequence(prefix, numberSets));
+    }
+
+    private static int NextNumberSequence(string prefix, params IEnumerable<string?>[] numberSets)
+    {
+        return numberSets
+            .SelectMany(set => set)
+            .Select(number => ParseSequence(prefix, number))
+            .DefaultIfEmpty(0)
+            .Max() + 1;
+    }
+
+    private static string FormatNumber(string prefix, int sequence)
     {
         return $"{prefix}-{sequence:0000}";
+    }
+
+    private static int ParseSequence(string prefix, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return 0;
+        }
+
+        var expectedPrefix = $"{prefix}-";
+        if (!value.StartsWith(expectedPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        return int.TryParse(value[expectedPrefix.Length..], out var sequence) ? sequence : 0;
     }
 
     private sealed record SessionContext(SessionEntity Session, UserEntity User, IReadOnlyList<string> RoleNames, HashSet<string> PermissionCodes)

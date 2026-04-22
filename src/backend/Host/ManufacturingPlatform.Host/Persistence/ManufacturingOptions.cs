@@ -18,6 +18,7 @@ public sealed class AiOptions
     public string BaseUrl { get; init; } = string.Empty;
     public string ApiKey { get; init; } = string.Empty;
     public string Model { get; init; } = "gpt-4o-mini";
+    public int TimeoutSeconds { get; init; } = 20;
 }
 
 public sealed class CostingOptions

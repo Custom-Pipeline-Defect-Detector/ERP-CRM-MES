@@ -33,11 +33,22 @@ public sealed class ErpModule : IModule
 
         group.MapGet("/overview", Results);
         group.MapGet("/products", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetProducts(httpContext.GetSessionToken())));
+        group.MapGet("/materials", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetMaterials(httpContext.GetSessionToken())));
+        group.MapGet("/suppliers", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetSuppliers(httpContext.GetSessionToken())));
+        group.MapGet("/purchase-orders", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetPurchaseOrders(httpContext.GetSessionToken())));
+        group.MapPost("/purchase-orders", (HttpContext httpContext, IManufacturingRuntime runtime, CreatePurchaseOrderRequest request) => RuntimeApi.Execute(() => runtime.CreatePurchaseOrder(httpContext.GetSessionToken(), request)));
+        group.MapPost("/purchase-orders/{purchaseOrderId:guid}/submit", (HttpContext httpContext, IManufacturingRuntime runtime, Guid purchaseOrderId) => RuntimeApi.Execute(() => runtime.SubmitPurchaseOrder(httpContext.GetSessionToken(), purchaseOrderId)));
+        group.MapPost("/purchase-orders/{purchaseOrderId:guid}/approve", (HttpContext httpContext, IManufacturingRuntime runtime, Guid purchaseOrderId) => RuntimeApi.Execute(() => runtime.ApprovePurchaseOrder(httpContext.GetSessionToken(), purchaseOrderId)));
+        group.MapPost("/purchase-orders/{purchaseOrderId:guid}/receive", (HttpContext httpContext, IManufacturingRuntime runtime, Guid purchaseOrderId, ReceivePurchaseOrderRequest request) => RuntimeApi.Execute(() => runtime.ReceivePurchaseOrder(httpContext.GetSessionToken(), purchaseOrderId, request)));
+        group.MapGet("/goods-receipts", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetGoodsReceipts(httpContext.GetSessionToken())));
         group.MapGet("/production-orders", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetProductionOrders(httpContext.GetSessionToken())));
         group.MapPost("/production-orders/{productionOrderId:guid}/release-to-mes", (HttpContext httpContext, IManufacturingRuntime runtime, Guid productionOrderId) => RuntimeApi.Execute(() => runtime.ReleaseProductionOrderToMes(httpContext.GetSessionToken(), productionOrderId)));
+        group.MapGet("/sales-shipments", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetSalesShipments(httpContext.GetSessionToken())));
+        group.MapPost("/sales-shipments", (HttpContext httpContext, IManufacturingRuntime runtime, ShipSalesOrderRequest request) => RuntimeApi.Execute(() => runtime.ShipSalesOrder(httpContext.GetSessionToken(), request)));
         group.MapGet("/inventory-balances", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetInventoryBalances(httpContext.GetSessionToken())));
         group.MapGet("/cost-ledgers", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetCostLedgers(httpContext.GetSessionToken())));
         group.MapGet("/accounting-bridges", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetAccountingBridges(httpContext.GetSessionToken())));
+        group.MapPost("/accounting-bridges/{accountingBridgeId:guid}/state", (HttpContext httpContext, IManufacturingRuntime runtime, Guid accountingBridgeId, UpdateAccountingBridgeStateRequest request) => RuntimeApi.Execute(() => runtime.UpdateAccountingBridgeState(httpContext.GetSessionToken(), accountingBridgeId, request)));
     }
 
     private static Ok<ErpModuleOverview> Results()

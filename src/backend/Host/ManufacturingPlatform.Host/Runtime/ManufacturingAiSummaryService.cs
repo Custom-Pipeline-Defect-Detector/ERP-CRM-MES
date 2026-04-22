@@ -49,8 +49,9 @@ public sealed class ManufacturingAiSummaryService(IHttpClientFactory httpClientF
         try
         {
             var client = _httpClientFactory.CreateClient(nameof(ManufacturingAiSummaryService));
-            client.BaseAddress = new Uri(_options.Ai.BaseUrl.TrimEnd('/') + "/");
+            client.BaseAddress = BuildBaseAddress(_options.Ai.BaseUrl);
             client.DefaultRequestHeaders.Authorization = new("Bearer", _options.Ai.ApiKey);
+            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(_options.Ai.TimeoutSeconds, 5, 120));
 
             var prompt =
                 "You are an on-premise manufacturing management analyst. " +
@@ -71,7 +72,7 @@ public sealed class ManufacturingAiSummaryService(IHttpClientFactory httpClientF
                     new ChatMessage("user", prompt)
                 ]);
 
-            var response = client.PostAsJsonAsync("v1/chat/completions", request).GetAwaiter().GetResult();
+            var response = client.PostAsJsonAsync(GetChatCompletionsPath(client.BaseAddress), request).GetAwaiter().GetResult();
             response.EnsureSuccessStatusCode();
 
             var payload = response.Content.ReadFromJsonAsync<ChatCompletionsResponse>().GetAwaiter().GetResult();
@@ -83,6 +84,16 @@ public sealed class ManufacturingAiSummaryService(IHttpClientFactory httpClientF
             }
 
             return new AiManagementSummaryDto("ConfiguredGateway", _options.Ai.Model, DateTimeOffset.UtcNow, summary, warnings);
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode.HasValue)
+        {
+            warnings.Add($"External AI gateway returned HTTP {(int)exception.StatusCode.Value}; local summary rules were used instead.");
+            return new AiManagementSummaryDto("LocalRules", "rule-based", DateTimeOffset.UtcNow, fallbackSummary, warnings);
+        }
+        catch (TaskCanceledException)
+        {
+            warnings.Add("External AI gateway timed out; local summary rules were used instead.");
+            return new AiManagementSummaryDto("LocalRules", "rule-based", DateTimeOffset.UtcNow, fallbackSummary, warnings);
         }
         catch
         {
@@ -100,4 +111,17 @@ public sealed class ManufacturingAiSummaryService(IHttpClientFactory httpClientF
     private sealed record Choice([property: JsonPropertyName("message")] ChoiceMessage Message);
 
     private sealed record ChoiceMessage([property: JsonPropertyName("content")] string Content);
+
+    private static Uri BuildBaseAddress(string configuredBaseUrl)
+    {
+        return new Uri(configuredBaseUrl.TrimEnd('/') + "/");
+    }
+
+    private static string GetChatCompletionsPath(Uri? baseAddress)
+    {
+        var path = baseAddress?.AbsolutePath.TrimEnd('/') ?? string.Empty;
+        return path.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)
+            ? "chat/completions"
+            : "v1/chat/completions";
+    }
 }

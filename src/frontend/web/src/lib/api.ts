@@ -1,16 +1,24 @@
 import type {
   AccountingBridgeItem,
+  AccountingExportBatch,
   AiManagementSummary,
   AuditLogItem,
   CostLedgerItem,
   CustomerListItem,
   DashboardSnapshot,
+  ExternalSystemStatus,
+  GoodsReceiptListItem,
+  IntegrationJobItem,
   InventoryBalanceItem,
+  MaterialListItem,
+  PurchaseOrderListItem,
   ProductListItem,
   ProductionOrderListItem,
   QualityInspectionItem,
   SalesOrderListItem,
+  SalesShipmentListItem,
   Session,
+  SupplierListItem,
   UserListItem,
   WorkOrderListItem,
 } from '../types/runtime'
@@ -135,10 +143,56 @@ export const crmApi = {
 
 export const erpApi = {
   getProducts: () => request<ProductListItem[]>('/api/erp/products'),
+  getMaterials: () => request<MaterialListItem[]>('/api/erp/materials'),
+  getSuppliers: () => request<SupplierListItem[]>('/api/erp/suppliers'),
+  getPurchaseOrders: () => request<PurchaseOrderListItem[]>('/api/erp/purchase-orders'),
+  createPurchaseOrder: (payload: {
+    supplierId: string
+    materialCode: string
+    orderedQuantity: number
+    unitPrice: number
+    warehouseCode: string
+    expectedReceiptDate: string
+  }) =>
+    request<PurchaseOrderListItem>('/api/erp/purchase-orders', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  submitPurchaseOrder: (purchaseOrderId: string) =>
+    request<PurchaseOrderListItem>(`/api/erp/purchase-orders/${purchaseOrderId}/submit`, { method: 'POST' }),
+  approvePurchaseOrder: (purchaseOrderId: string) =>
+    request<PurchaseOrderListItem>(`/api/erp/purchase-orders/${purchaseOrderId}/approve`, { method: 'POST' }),
+  receivePurchaseOrder: (
+    purchaseOrderId: string,
+    payload: {
+      receivedQuantity: number
+      batchNumber: string
+    },
+  ) =>
+    request<GoodsReceiptListItem>(`/api/erp/purchase-orders/${purchaseOrderId}/receive`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  getGoodsReceipts: () => request<GoodsReceiptListItem[]>('/api/erp/goods-receipts'),
   getProductionOrders: () => request<ProductionOrderListItem[]>('/api/erp/production-orders'),
+  getSalesShipments: () => request<SalesShipmentListItem[]>('/api/erp/sales-shipments'),
+  createSalesShipment: (payload: {
+    salesOrderId: string
+    shippedQuantity: number
+    warehouseCode: string
+  }) =>
+    request<SalesShipmentListItem>('/api/erp/sales-shipments', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   getInventoryBalances: () => request<InventoryBalanceItem[]>('/api/erp/inventory-balances'),
   getCostLedgers: () => request<CostLedgerItem[]>('/api/erp/cost-ledgers'),
   getAccountingBridges: () => request<AccountingBridgeItem[]>('/api/erp/accounting-bridges'),
+  updateAccountingBridgeState: (accountingBridgeId: string, payload: { targetState: string }) =>
+    request<AccountingBridgeItem>(`/api/erp/accounting-bridges/${accountingBridgeId}/state`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   releaseProductionOrderToMes: (productionOrderId: string) =>
     request<ProductionOrderListItem>(`/api/erp/production-orders/${productionOrderId}/release-to-mes`, {
       method: 'POST',
@@ -186,4 +240,30 @@ export const qualityApi = {
 
 export const aiApi = {
   getManagementSummary: () => request<AiManagementSummary>('/api/ai/management-summary'),
+}
+
+export const integrationApi = {
+  getExternalSystems: () => request<ExternalSystemStatus[]>('/api/integration/external-systems'),
+  getAccountingExportBatches: () => request<AccountingExportBatch[]>('/api/integration/accounting-export-batches'),
+  createAccountingExportBatch: (payload: { targetSystemCode: string }) =>
+    request<AccountingExportBatch>('/api/integration/accounting-export-batches', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  dispatchAccountingExportBatch: (exportBatchId: string) =>
+    request<IntegrationJobItem>(`/api/integration/accounting-export-batches/${exportBatchId}/dispatch`, {
+      method: 'POST',
+    }),
+  getIntegrationJobs: () => request<IntegrationJobItem[]>('/api/integration/jobs'),
+  completeIntegrationJob: (
+    integrationJobId: string,
+    payload: {
+      outcome: string
+      errorMessage: string | null
+    },
+  ) =>
+    request<IntegrationJobItem>(`/api/integration/jobs/${integrationJobId}/complete`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 }

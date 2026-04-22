@@ -2,6 +2,13 @@
 
 This repository contains the initial scaffold for an on-premise manufacturing platform covering CRM, ERP, MES, Quality, Reporting, AI, Platform Administration, and Integration.
 
+The current implementation is a persisted phase-1 vertical slice:
+- EF Core-backed backend with SQLite for development and SQL Server configuration for production
+- CRM to ERP to MES order flow
+- purchase orders and goods receipts into inventory
+- inventory postings, quality hold/release, work-order costing, customer shipment, and accounting bridge generation/progression
+- AI management summary over governed reporting datasets with local fallback when the external gateway is unavailable
+
 ## Structure
 
 - `docs`: project blueprint and BRD/SRS draft
@@ -46,9 +53,49 @@ Frontend endpoint:
 
 - `http://127.0.0.1:4173/`
 
+## Persistence
+
+- Development uses SQLite at `infra/data/manufacturing-platform.db`
+- Production settings default to SQL Server in `src/backend/Host/ManufacturingPlatform.Host/appsettings.json`
+- EF migrations are committed under `src/backend/Host/ManufacturingPlatform.Host/Persistence/Migrations`
+- On startup, clean environments apply migrations automatically; older local databases created before migrations continue to start through the compatibility path
+
+Migration commands:
+
+```powershell
+dotnet dotnet-ef migrations list --project src/backend/Host/ManufacturingPlatform.Host/ManufacturingPlatform.Host.csproj --startup-project src/backend/Host/ManufacturingPlatform.Host/ManufacturingPlatform.Host.csproj
+dotnet dotnet-ef database update --project src/backend/Host/ManufacturingPlatform.Host/ManufacturingPlatform.Host.csproj --startup-project src/backend/Host/ManufacturingPlatform.Host/ManufacturingPlatform.Host.csproj
+```
+
+## AI Gateway
+
+- Base URL is configured in `appsettings.json`
+- Keep the API key out of source control and provide it through environment variables when needed
+- OpenAI-compatible gateways should point to the API root, for example `https://host/v1`
+- The runtime posts to `chat/completions` when the configured base URL already ends in `/v1`
+- `Manufacturing:Ai:TimeoutSeconds` controls how long the backend waits before falling back to local rules
+
+Example:
+
+```powershell
+$env:Manufacturing__Ai__BaseUrl='https://api123.icu/v1'
+$env:Manufacturing__Ai__ApiKey='your-key-here'
+dotnet run --project src/backend/Host/ManufacturingPlatform.Host/ManufacturingPlatform.Host.csproj --urls http://127.0.0.1:5099
+```
+
+If the gateway is unavailable, times out, or returns an unsupported response, the AI module falls back to deterministic local summaries instead of failing the page.
+
+## Demo Users
+
+- `admin`
+- `sales`
+- `planner`
+- `operator`
+- `quality`
+
 ## Next implementation priorities
 
-1. Add persistence, authentication, and configuration to the Platform module.
-2. Formalize the shared master-data model across CRM, ERP, MES, and Quality.
-3. Implement end-to-end sales order to production order to stock movement flows.
-4. Add cost accounting, reporting jobs, and legacy-system integration adapters.
+1. Replace demo session login with real authentication, password policy, and RBAC administration.
+2. Add purchase, warehouse transfer, shipment, and finance settlement flows on top of the same persisted model.
+3. Formalize legacy integration adapters for Kingdee and the existing factory system.
+4. Expand reporting into exportable datasets, scheduled jobs, and drill-down management dashboards.

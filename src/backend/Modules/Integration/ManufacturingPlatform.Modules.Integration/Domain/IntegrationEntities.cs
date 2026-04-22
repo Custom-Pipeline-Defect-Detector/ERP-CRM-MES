@@ -1,5 +1,30 @@
 namespace ManufacturingPlatform.Modules.Integration.Domain;
 
+public enum ExternalSystemHealthStatus
+{
+    Unknown,
+    Configured,
+    Reachable,
+    Warning,
+    Failed
+}
+
+public enum ExportBatchState
+{
+    Prepared,
+    Sent,
+    Acknowledged,
+    Failed
+}
+
+public enum IntegrationJobState
+{
+    Queued,
+    Sent,
+    Succeeded,
+    Failed
+}
+
 public sealed record ExternalSystem(Guid Id, string SystemCode, string Name);
 
 public sealed record SyncContractDefinition(

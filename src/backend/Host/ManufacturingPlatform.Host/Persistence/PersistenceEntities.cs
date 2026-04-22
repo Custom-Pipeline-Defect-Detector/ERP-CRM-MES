@@ -1,5 +1,6 @@
 using ManufacturingPlatform.Modules.CRM.Domain;
 using ManufacturingPlatform.Modules.ERP.Domain;
+using ManufacturingPlatform.Modules.Integration.Domain;
 using ManufacturingPlatform.Modules.MES.Domain;
 using ManufacturingPlatform.Modules.Quality.Domain;
 
@@ -96,6 +97,7 @@ public sealed class MaterialEntity
     public decimal ReorderLevel { get; set; }
     public bool IsLotControlled { get; set; }
     public ICollection<BomComponentEntity> BomComponents { get; set; } = [];
+    public ICollection<PurchaseOrderEntity> PurchaseOrders { get; set; } = [];
 }
 
 public sealed class ProductEntity
@@ -135,6 +137,54 @@ public sealed class CustomerEntity
     public ICollection<SalesOrderEntity> SalesOrders { get; set; } = [];
 }
 
+public sealed class SupplierEntity
+{
+    public Guid Id { get; set; }
+    public required string Code { get; set; }
+    public required string Name { get; set; }
+    public required string Category { get; set; }
+    public required string TaxRegistrationNumber { get; set; }
+    public int LeadTimeDays { get; set; }
+    public required string PaymentTerms { get; set; }
+    public ICollection<PurchaseOrderEntity> PurchaseOrders { get; set; } = [];
+}
+
+public sealed class PurchaseOrderEntity
+{
+    public Guid Id { get; set; }
+    public required string OrderNumber { get; set; }
+    public Guid SupplierId { get; set; }
+    public SupplierEntity? Supplier { get; set; }
+    public Guid MaterialId { get; set; }
+    public MaterialEntity? Material { get; set; }
+    public Guid WarehouseId { get; set; }
+    public WarehouseEntity? Warehouse { get; set; }
+    public PurchaseOrderState State { get; set; }
+    public decimal OrderedQuantity { get; set; }
+    public decimal ReceivedQuantity { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal TotalAmount { get; set; }
+    public DateOnly OrderedOn { get; set; }
+    public DateOnly ExpectedReceiptDate { get; set; }
+    public ICollection<GoodsReceiptEntity> GoodsReceipts { get; set; } = [];
+}
+
+public sealed class GoodsReceiptEntity
+{
+    public Guid Id { get; set; }
+    public required string ReceiptNumber { get; set; }
+    public Guid PurchaseOrderId { get; set; }
+    public PurchaseOrderEntity? PurchaseOrder { get; set; }
+    public Guid WarehouseId { get; set; }
+    public WarehouseEntity? Warehouse { get; set; }
+    public GoodsReceiptState State { get; set; }
+    public InventoryQualityStatus QualityStatus { get; set; }
+    public decimal ReceivedQuantity { get; set; }
+    public decimal UnitCost { get; set; }
+    public required string BatchNumber { get; set; }
+    public DateOnly ReceivedOn { get; set; }
+}
+
 public sealed class SalesOrderEntity
 {
     public Guid Id { get; set; }
@@ -150,6 +200,22 @@ public sealed class SalesOrderEntity
     public DateOnly RequestedDeliveryDate { get; set; }
     public Guid? ProductionOrderId { get; set; }
     public ProductionOrderEntity? ProductionOrder { get; set; }
+    public ICollection<SalesShipmentEntity> SalesShipments { get; set; } = [];
+}
+
+public sealed class SalesShipmentEntity
+{
+    public Guid Id { get; set; }
+    public required string ShipmentNumber { get; set; }
+    public Guid SalesOrderId { get; set; }
+    public SalesOrderEntity? SalesOrder { get; set; }
+    public Guid WarehouseId { get; set; }
+    public WarehouseEntity? Warehouse { get; set; }
+    public SalesShipmentState State { get; set; }
+    public decimal ShippedQuantity { get; set; }
+    public required string BatchNumber { get; set; }
+    public decimal UnitPrice { get; set; }
+    public DateOnly ShippedOn { get; set; }
 }
 
 public sealed class ProductionOrderEntity
@@ -246,6 +312,8 @@ public sealed class AccountingBridgeEntryEntity
     public decimal Amount { get; set; }
     public required string PostingAccount { get; set; }
     public DateTimeOffset GeneratedAt { get; set; }
+    public Guid? ExportBatchId { get; set; }
+    public AccountingExportBatchEntity? ExportBatch { get; set; }
 }
 
 public sealed class QualityInspectionEntity
@@ -277,4 +345,45 @@ public sealed class AiInsightRunEntity
     public required string Summary { get; set; }
     public string? ErrorMessage { get; set; }
     public DateTimeOffset GeneratedAt { get; set; }
+}
+
+public sealed class ExternalSystemEntity
+{
+    public Guid Id { get; set; }
+    public required string SystemCode { get; set; }
+    public required string Name { get; set; }
+    public required string BaseUrl { get; set; }
+    public bool IsEnabled { get; set; }
+    public ExternalSystemHealthStatus HealthStatus { get; set; }
+    public DateTimeOffset? LastCheckedAt { get; set; }
+}
+
+public sealed class AccountingExportBatchEntity
+{
+    public Guid Id { get; set; }
+    public required string BatchNumber { get; set; }
+    public required string TargetSystemCode { get; set; }
+    public ExportBatchState State { get; set; }
+    public int BridgeCount { get; set; }
+    public decimal TotalAmount { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? SentAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+    public ICollection<AccountingBridgeEntryEntity> AccountingBridges { get; set; } = [];
+    public ICollection<IntegrationJobEntity> IntegrationJobs { get; set; } = [];
+}
+
+public sealed class IntegrationJobEntity
+{
+    public Guid Id { get; set; }
+    public required string JobNumber { get; set; }
+    public required string TargetSystemCode { get; set; }
+    public required string JobType { get; set; }
+    public IntegrationJobState State { get; set; }
+    public Guid? ExportBatchId { get; set; }
+    public AccountingExportBatchEntity? ExportBatch { get; set; }
+    public required string PayloadSummary { get; set; }
+    public string? LastError { get; set; }
+    public DateTimeOffset QueuedAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
 }

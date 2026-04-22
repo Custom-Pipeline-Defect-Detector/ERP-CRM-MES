@@ -1,5 +1,6 @@
 using ManufacturingPlatform.Modules.CRM.Domain;
 using ManufacturingPlatform.Modules.ERP.Domain;
+using ManufacturingPlatform.Modules.Integration.Domain;
 using ManufacturingPlatform.Modules.MES.Domain;
 using ManufacturingPlatform.Modules.Quality.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +14,26 @@ public static class ManufacturingDbInitializer
         using var scope = services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ManufacturingDbContext>();
 
-        await dbContext.Database.EnsureCreatedAsync(cancellationToken);
+        var hasMigrations = dbContext.Database.GetMigrations().Any();
+
+        if (hasMigrations)
+        {
+            var hasMigrationHistory = await HasTableAsync(dbContext, "__EFMigrationsHistory", cancellationToken);
+            var hasApplicationTables = await HasTableAsync(dbContext, "Users", cancellationToken);
+
+            if (hasMigrationHistory || !hasApplicationTables)
+            {
+                await dbContext.Database.MigrateAsync(cancellationToken);
+            }
+            else
+            {
+                await dbContext.Database.EnsureCreatedAsync(cancellationToken);
+            }
+        }
+        else
+        {
+            await dbContext.Database.EnsureCreatedAsync(cancellationToken);
+        }
 
         if (await dbContext.Users.AnyAsync(cancellationToken))
         {
@@ -50,16 +70,28 @@ public static class ManufacturingDbInitializer
             permissions["crm.sales-order.approve"],
             permissions["crm.sales-order.release"],
             permissions["erp.product.read"],
+            permissions["erp.shipment.read"],
             permissions["reporting.dashboard.read"],
             permissions["ai.summary.read"]);
         LinkRolePermissions(
             dbContext,
             plannerRole,
+            permissions["crm.sales-order.read"],
+            permissions["erp.supplier.read"],
+            permissions["erp.purchase-order.read"],
+            permissions["erp.purchase-order.write"],
+            permissions["erp.purchase-order.approve"],
+            permissions["erp.goods-receipt.write"],
             permissions["erp.product.read"],
             permissions["erp.production-order.read"],
             permissions["erp.production-order.release"],
             permissions["erp.inventory.read"],
             permissions["erp.cost.read"],
+            permissions["erp.shipment.read"],
+            permissions["erp.shipment.write"],
+            permissions["erp.accounting.manage"],
+            permissions["integration.read"],
+            permissions["integration.manage"],
             permissions["reporting.dashboard.read"],
             permissions["ai.summary.read"]);
         LinkRolePermissions(
@@ -133,10 +165,111 @@ public static class ManufacturingDbInitializer
             new BomComponentEntity { Id = Id("BOM-610-2"), ProductId = panel610.Id, MaterialId = glass.Id, QuantityPerUnit = 2m },
             new BomComponentEntity { Id = Id("BOM-610-3"), ProductId = panel610.Id, MaterialId = eva.Id, QuantityPerUnit = 9m });
 
+        var supplierA = new SupplierEntity
+        {
+            Id = Id("SUP-001"),
+            Code = "S-0001",
+            Name = "Shandong Materials Group",
+            Category = "Core Material",
+            TaxRegistrationNumber = "91370100SMG000001",
+            LeadTimeDays = 5,
+            PaymentTerms = "30D"
+        };
+
+        var supplierB = new SupplierEntity
+        {
+            Id = Id("SUP-002"),
+            Code = "S-0002",
+            Name = "Qingdao Glass Supply Co.",
+            Category = "Glass",
+            TaxRegistrationNumber = "91370200QGS000002",
+            LeadTimeDays = 7,
+            PaymentTerms = "45D"
+        };
+
+        dbContext.Suppliers.AddRange(supplierA, supplierB);
+
+        var purchaseOrder1 = new PurchaseOrderEntity
+        {
+            Id = Id("PO-001"),
+            OrderNumber = "PO-0001",
+            SupplierId = supplierA.Id,
+            MaterialId = eva.Id,
+            WarehouseId = rmWarehouse.Id,
+            State = PurchaseOrderState.Completed,
+            OrderedQuantity = 1200m,
+            ReceivedQuantity = 1200m,
+            UnitPrice = 4.35m,
+            TotalAmount = 5220m,
+            OrderedOn = new DateOnly(2026, 4, 15),
+            ExpectedReceiptDate = new DateOnly(2026, 4, 20)
+        };
+
+        var purchaseOrder2 = new PurchaseOrderEntity
+        {
+            Id = Id("PO-002"),
+            OrderNumber = "PO-0002",
+            SupplierId = supplierB.Id,
+            MaterialId = glass.Id,
+            WarehouseId = rmWarehouse.Id,
+            State = PurchaseOrderState.Approved,
+            OrderedQuantity = 180m,
+            ReceivedQuantity = 0m,
+            UnitPrice = 25.10m,
+            TotalAmount = 4518m,
+            OrderedOn = new DateOnly(2026, 4, 21),
+            ExpectedReceiptDate = new DateOnly(2026, 4, 27)
+        };
+
+        dbContext.PurchaseOrders.AddRange(purchaseOrder1, purchaseOrder2);
+
         dbContext.InventoryTransactions.AddRange(
             OpeningReceipt(rmWarehouse, cell.Code, 24000m, cell.StandardUnitCost, "LOT-CELL-OPEN", "OPENING"),
             OpeningReceipt(rmWarehouse, glass.Code, 600m, glass.StandardUnitCost, "LOT-GLASS-OPEN", "OPENING"),
-            OpeningReceipt(rmWarehouse, eva.Code, 4000m, eva.StandardUnitCost, "LOT-EVA-OPEN", "OPENING"));
+            OpeningReceipt(rmWarehouse, eva.Code, 4000m, eva.StandardUnitCost, "LOT-EVA-OPEN", "OPENING"),
+            new InventoryTransactionEntity
+            {
+                Id = Id("ITX-PO-001"),
+                TransactionNumber = "ITX-PO-0001",
+                TransactionType = InventoryTransactionType.GoodsReceipt,
+                WarehouseId = rmWarehouse.Id,
+                ItemCode = eva.Code,
+                Quantity = 1200m,
+                BatchNumber = "LOT-EVA-20260420",
+                UnitCost = 4.35m,
+                TotalCost = 5220m,
+                QualityStatus = InventoryQualityStatus.Released,
+                SourceDocumentNumber = purchaseOrder1.OrderNumber,
+                SourceEvent = "Purchase receipt",
+                OccurredAt = DateTimeOffset.UtcNow.AddDays(-2)
+            });
+
+        dbContext.GoodsReceipts.Add(
+            new GoodsReceiptEntity
+            {
+                Id = Id("GR-001"),
+                ReceiptNumber = "GR-0001",
+                PurchaseOrderId = purchaseOrder1.Id,
+                WarehouseId = rmWarehouse.Id,
+                State = GoodsReceiptState.Accepted,
+                QualityStatus = InventoryQualityStatus.Released,
+                ReceivedQuantity = 1200m,
+                UnitCost = 4.35m,
+                BatchNumber = "LOT-EVA-20260420",
+                ReceivedOn = new DateOnly(2026, 4, 20)
+            });
+
+        dbContext.ExternalSystems.Add(
+            new ExternalSystemEntity
+            {
+                Id = Id("EXT-KINGDEE"),
+                SystemCode = "KINGDEE",
+                Name = "Kingdee Finance",
+                BaseUrl = "https://api123.icu/v1",
+                IsEnabled = true,
+                HealthStatus = ExternalSystemHealthStatus.Configured,
+                LastCheckedAt = DateTimeOffset.UtcNow.AddMinutes(-30)
+            });
 
         var customerA = new CustomerEntity
         {
@@ -225,7 +358,7 @@ public static class ManufacturingDbInitializer
             Id = Id("MO-002"),
             ProductionOrderNumber = "MO-0002",
             SalesOrderId = salesOrder2.Id,
-            State = ProductionOrderState.InExecution,
+            State = ProductionOrderState.TechnicallyCompleted,
             ProductCode = panel610.Code,
             PlannedQuantity = 78m,
             PlannedStartDate = new DateOnly(2026, 4, 22),
@@ -242,7 +375,7 @@ public static class ManufacturingDbInitializer
             Id = Id("WO-001"),
             WorkOrderNumber = "WO-0001",
             ProductionOrderId = productionOrder2.Id,
-            State = WorkOrderState.Started,
+            State = WorkOrderState.Reported,
             ProductCode = panel610.Code,
             PlannedQuantity = 78m,
             GoodQuantity = 36m,
@@ -250,8 +383,8 @@ public static class ManufacturingDbInitializer
             ReworkQuantity = 0m,
             LaborHours = 12.5m,
             MachineHours = 10m,
-            CurrentOperationName = "Lamination",
-            CurrentOperationSequence = 20,
+            CurrentOperationName = "Quality Inspection",
+            CurrentOperationSequence = 99,
             IssueMode = IssueMode.Backflush,
             IsMachineDriven = true,
             FinishedGoodsBatchNumber = "FG-20260422-610-01"
@@ -281,7 +414,7 @@ public static class ManufacturingDbInitializer
                 OperationCode = "LAM",
                 OperationName = "Lamination",
                 Sequence = 20,
-                State = OperationExecutionState.Started,
+                State = OperationExecutionState.Completed,
                 IsMachineDriven = true,
                 IssueMode = IssueMode.Backflush,
                 WorkCenterCode = "WC-LAM",
@@ -294,7 +427,7 @@ public static class ManufacturingDbInitializer
                 OperationCode = "FQC",
                 OperationName = "Final Test",
                 Sequence = 30,
-                State = OperationExecutionState.Created,
+                State = OperationExecutionState.Completed,
                 IsMachineDriven = false,
                 IssueMode = IssueMode.ManualIssue,
                 WorkCenterCode = "WC-FQC"
@@ -348,6 +481,22 @@ public static class ManufacturingDbInitializer
                 SourceDocumentNumber = workOrder2.WorkOrderNumber,
                 SourceEvent = "MES backflush",
                 OccurredAt = DateTimeOffset.UtcNow.AddDays(-1)
+            },
+            new InventoryTransactionEntity
+            {
+                Id = Id("ITX-004"),
+                TransactionNumber = "ITX-0004",
+                TransactionType = InventoryTransactionType.ProductionReceipt,
+                WarehouseId = fgWarehouse.Id,
+                ItemCode = panel610.Code,
+                Quantity = 36m,
+                BatchNumber = workOrder2.FinishedGoodsBatchNumber,
+                UnitCost = 412.75m,
+                TotalCost = 14859m,
+                QualityStatus = InventoryQualityStatus.PendingInspection,
+                SourceDocumentNumber = workOrder2.WorkOrderNumber,
+                SourceEvent = "MES completion report",
+                OccurredAt = DateTimeOffset.UtcNow.AddHours(-6)
             });
 
         dbContext.CostPostings.AddRange(
@@ -473,11 +622,21 @@ public static class ManufacturingDbInitializer
             Permission("crm.sales-order.write", "Maintain sales orders"),
             Permission("crm.sales-order.approve", "Approve sales orders"),
             Permission("crm.sales-order.release", "Release sales orders"),
+            Permission("erp.supplier.read", "Read suppliers"),
+            Permission("erp.purchase-order.read", "Read purchase orders"),
+            Permission("erp.purchase-order.write", "Maintain purchase orders"),
+            Permission("erp.purchase-order.approve", "Approve purchase orders"),
+            Permission("erp.goods-receipt.write", "Receive purchased materials"),
             Permission("erp.product.read", "Read product master"),
             Permission("erp.production-order.read", "Read production orders"),
             Permission("erp.production-order.release", "Release production orders"),
             Permission("erp.inventory.read", "Read inventory"),
             Permission("erp.cost.read", "Read cost ledgers"),
+            Permission("erp.shipment.read", "Read sales shipments"),
+            Permission("erp.shipment.write", "Create sales shipments"),
+            Permission("erp.accounting.manage", "Manage accounting bridge"),
+            Permission("integration.read", "Read integration status"),
+            Permission("integration.manage", "Manage integration jobs"),
             Permission("mes.work-order.read", "Read work orders"),
             Permission("mes.work-order.execute", "Execute work orders"),
             Permission("quality.inspection.read", "Read quality inspections"),
@@ -523,7 +682,39 @@ public static class ManufacturingDbInitializer
 
     private static Guid Id(string seed)
     {
-        var bytes = System.Text.Encoding.UTF8.GetBytes(seed.PadRight(16, '_')[..16]);
+        var bytes = System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes(seed));
         return new Guid(bytes);
+    }
+
+    private static async Task<bool> HasTableAsync(ManufacturingDbContext dbContext, string tableName, CancellationToken cancellationToken)
+    {
+        if (dbContext.Database.IsSqlite())
+        {
+            var count = await dbContext.Database
+                .SqlQuery<int>($"SELECT COUNT(*) AS Value FROM sqlite_master WHERE type = 'table' AND name = {tableName}")
+                .SingleAsync(cancellationToken);
+
+            return count > 0;
+        }
+
+        if (dbContext.Database.IsSqlServer())
+        {
+            var count = await dbContext.Database
+                .SqlQuery<int>($"SELECT COUNT(*) AS Value FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = {tableName}")
+                .SingleAsync(cancellationToken);
+
+            return count > 0;
+        }
+
+        if (string.Equals(dbContext.Database.ProviderName, "Npgsql.EntityFrameworkCore.PostgreSQL", StringComparison.OrdinalIgnoreCase))
+        {
+            var count = await dbContext.Database
+                .SqlQuery<int>($"SELECT COUNT(*) AS Value FROM information_schema.tables WHERE table_schema = 'public' AND table_name = {tableName}")
+                .SingleAsync(cancellationToken);
+
+            return count > 0;
+        }
+
+        return false;
     }
 }
