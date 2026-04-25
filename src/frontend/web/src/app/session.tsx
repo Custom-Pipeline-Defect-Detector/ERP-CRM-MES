@@ -6,11 +6,13 @@ interface SessionContextValue {
   session: Session | null
   isLoading: boolean
   error: string | null
-  loginAs: (userName: string) => Promise<void>
+  login: (userName: string, password: string) => Promise<void>
+  logout: () => void
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
   availableUsers: string[]
 }
 
-const availableUsers = ['admin', 'sales', 'planner', 'operator', 'quality']
+const availableUsers = ['admin', 'sales', 'planner', 'operator', 'quality', 'finance']
 
 const SessionContext = createContext<SessionContextValue | null>(null)
 
@@ -30,26 +32,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           setSession(existingSession)
           setError(null)
         }
-      } catch {
-        try {
-          const defaultSession = await platformApi.login('admin')
-
-          if (!isCancelled) {
-            setStoredSessionToken(defaultSession.token)
-            setSession(defaultSession)
-            setError(null)
-          }
-        } catch (initializationError) {
-          if (!isCancelled) {
-            const message =
-              initializationError instanceof Error
-                ? initializationError.message
-                : 'Unable to initialize the session.'
-
-            clearStoredSessionToken()
-            setSession(null)
-            setError(message)
-          }
+      } catch (initializationError) {
+        if (!isCancelled) {
+          const hasStoredSession = initializationError instanceof ApiError && initializationError.status !== 401
+          clearStoredSessionToken()
+          setSession(null)
+          setError(hasStoredSession ? initializationError.message : null)
         }
       } finally {
         if (!isCancelled) {
@@ -65,11 +53,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  async function loginAs(userName: string) {
+  async function login(userName: string, password: string) {
     setIsLoading(true)
 
     try {
-      const nextSession = await platformApi.login(userName)
+      const nextSession = await platformApi.login(userName, password)
       setStoredSessionToken(nextSession.token)
       setSession(nextSession)
       setError(null)
@@ -83,13 +71,37 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  function logout() {
+    clearStoredSessionToken()
+    setSession(null)
+    setError(null)
+  }
+
+  async function changePassword(currentPassword: string, newPassword: string) {
+    setIsLoading(true)
+
+    try {
+      const nextSession = await platformApi.changePassword({ currentPassword, newPassword })
+      setStoredSessionToken(nextSession.token)
+      setSession(nextSession)
+      setError(null)
+    } catch (changeError) {
+      setError(changeError instanceof Error ? changeError.message : 'Unable to change password.')
+      throw changeError
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <SessionContext.Provider
       value={{
         session,
         isLoading,
         error,
-        loginAs,
+        login,
+        logout,
+        changePassword,
         availableUsers,
       }}
     >

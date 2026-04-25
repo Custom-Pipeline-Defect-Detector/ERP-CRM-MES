@@ -9,6 +9,12 @@ public enum ExternalSystemHealthStatus
     Failed
 }
 
+public enum ExternalSystemAdapterMode
+{
+    Mock,
+    Http
+}
+
 public enum ExportBatchState
 {
     Prepared,

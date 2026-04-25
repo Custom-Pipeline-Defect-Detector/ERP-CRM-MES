@@ -5,7 +5,7 @@ public static class PlatformCapabilities
     public static readonly string[] All =
     [
         "Organization structure and department ownership",
-        "User, role, and permission management",
+        "User department assignment, role assignment, permission management, and account recovery",
         "Dictionary and configuration administration",
         "Audit logs, operation logs, and notifications"
     ];

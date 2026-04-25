@@ -5,6 +5,7 @@ public sealed record SessionUserDto(
     string UserName,
     string DisplayName,
     string Department,
+    bool MustChangePassword,
     IReadOnlyList<string> Roles,
     IReadOnlyList<string> Permissions);
 
@@ -13,14 +14,61 @@ public sealed record SessionDto(
     DateTimeOffset ExpiresAt,
     SessionUserDto User);
 
-public sealed record LoginRequest(string UserName);
+public sealed record LoginRequest(
+    string UserName,
+    string Password);
+
+public sealed record ChangePasswordRequest(
+    string CurrentPassword,
+    string NewPassword);
+
+public sealed record PasswordPolicyDto(
+    int MinimumLength,
+    bool RequireUppercase,
+    bool RequireLowercase,
+    bool RequireDigit,
+    bool RequireSymbol);
 
 public sealed record UserListItemDto(
     Guid Id,
     string UserName,
     string DisplayName,
+    Guid DepartmentId,
     string Department,
+    bool MustChangePassword,
+    DateTimeOffset? PasswordResetExpiresAt,
+    int FailedAccessCount,
+    DateTimeOffset? LockedUntil,
+    DateTimeOffset? LastLoginAt,
     IReadOnlyList<string> Roles);
+
+public sealed record DepartmentListItemDto(
+    Guid Id,
+    string Code,
+    string Name,
+    int UserCount);
+
+public sealed record CreateDepartmentRequest(
+    string Code,
+    string Name);
+
+public sealed record UpdateUserDepartmentRequest(Guid DepartmentId);
+
+public sealed record UpdateUserRolesRequest(IReadOnlyList<Guid> RoleIds);
+
+public sealed record RoleListItemDto(
+    Guid Id,
+    string Code,
+    string Name,
+    int UserCount,
+    IReadOnlyList<string> Permissions);
+
+public sealed record PasswordResetResultDto(
+    Guid UserId,
+    string UserName,
+    string TemporaryPassword,
+    bool MustChangePassword,
+    DateTimeOffset ExpiresAt);
 
 public sealed record AuditLogItemDto(
     Guid Id,
@@ -77,6 +125,13 @@ public sealed record SupplierListItemDto(
     int LeadTimeDays,
     string PaymentTerms);
 
+public sealed record WarehouseListItemDto(
+    Guid Id,
+    string Code,
+    string Name,
+    bool IsQualityControlled,
+    bool SupportsWip);
+
 public sealed record PurchaseOrderListItemDto(
     Guid Id,
     string OrderNumber,
@@ -116,6 +171,28 @@ public sealed record GoodsReceiptListItemDto(
 public sealed record ReceivePurchaseOrderRequest(
     decimal ReceivedQuantity,
     string BatchNumber);
+
+public sealed record WarehouseTransferListItemDto(
+    Guid Id,
+    string TransferNumber,
+    string FromWarehouseCode,
+    string ToWarehouseCode,
+    string ItemCode,
+    string ItemName,
+    decimal Quantity,
+    string BatchNumber,
+    string QualityStatus,
+    string State,
+    decimal UnitCost,
+    decimal TotalCost,
+    DateTimeOffset TransferredAt);
+
+public sealed record CreateWarehouseTransferRequest(
+    string FromWarehouseCode,
+    string ToWarehouseCode,
+    string ItemCode,
+    decimal Quantity,
+    string? BatchNumber);
 
 public sealed record SalesShipmentListItemDto(
     Guid Id,
@@ -238,6 +315,110 @@ public sealed record AccountingBridgeItemDto(
 
 public sealed record UpdateAccountingBridgeStateRequest(string TargetState);
 
+public sealed record SettlementEntryDto(
+    Guid Id,
+    string EntryNumber,
+    string SettlementType,
+    string SourceDocumentType,
+    string SourceDocumentNumber,
+    string CounterpartyName,
+    decimal TotalAmount,
+    decimal SettledAmount,
+    decimal OutstandingAmount,
+    DateOnly DueDate,
+    string State,
+    string? InvoiceNumber,
+    string? InvoiceState,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? LastSettledAt);
+
+public sealed record ApplySettlementRequest(
+    decimal Amount,
+    string? Reference);
+
+public sealed record InvoiceListItemDto(
+    Guid Id,
+    string InvoiceNumber,
+    string InvoiceType,
+    string SourceDocumentType,
+    string SourceDocumentNumber,
+    string CounterpartyName,
+    string SettlementEntryNumber,
+    decimal Amount,
+    DateOnly IssuedOn,
+    DateOnly DueDate,
+    string State,
+    DateTimeOffset CreatedAt);
+
+public sealed record CreateInvoiceRequest(
+    Guid SettlementEntryId,
+    DateOnly IssuedOn);
+
+public sealed record SettlementApplicationDto(
+    Guid Id,
+    string ApplicationNumber,
+    string SettlementEntryNumber,
+    string CounterpartyName,
+    string? InvoiceNumber,
+    decimal Amount,
+    string? Reference,
+    string AppliedBy,
+    DateTimeOffset AppliedAt);
+
+public sealed record SettlementAgingBucketDto(
+    string SettlementType,
+    int OpenEntries,
+    decimal CurrentAmount,
+    decimal Days1To30Amount,
+    decimal Days31To60Amount,
+    decimal Days61To90Amount,
+    decimal Over90DaysAmount,
+    decimal TotalOutstandingAmount);
+
+public sealed record AccountingPeriodDto(
+    Guid Id,
+    string PeriodCode,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    string State,
+    string? ClosedBy,
+    DateTimeOffset? ClosedAt,
+    string? CloseNotes);
+
+public sealed record CloseAccountingPeriodRequest(string? Notes);
+
+public sealed record AccountingVoucherLineDto(
+    Guid Id,
+    int LineNumber,
+    string SourceBridgeNumber,
+    string SourceDocumentNumber,
+    string SourceEvent,
+    string AccountCode,
+    decimal DebitAmount,
+    decimal CreditAmount,
+    string Narrative);
+
+public sealed record AccountingVoucherDto(
+    Guid Id,
+    string VoucherNumber,
+    string PeriodCode,
+    string State,
+    decimal TotalDebitAmount,
+    decimal TotalCreditAmount,
+    int LineCount,
+    string CreatedBy,
+    DateTimeOffset CreatedAt,
+    string? ApprovedBy,
+    DateTimeOffset? ApprovedAt,
+    string? PostedBy,
+    DateTimeOffset? PostedAt,
+    string? Notes,
+    IReadOnlyList<AccountingVoucherLineDto> Lines);
+
+public sealed record CreateAccountingVoucherRequest(
+    IReadOnlyList<Guid> AccountingBridgeIds,
+    string? Notes);
+
 public sealed record QualityInspectionItemDto(
     Guid Id,
     string InspectionNumber,
@@ -266,14 +447,48 @@ public sealed record AiManagementSummaryDto(
     string Summary,
     IReadOnlyList<string> Warnings);
 
+public sealed record ReportCatalogItemDto(
+    string ReportCode,
+    string Name,
+    string OwnerModule,
+    string Description,
+    int DefaultTake);
+
+public sealed record ReportPreviewDto(
+    string ReportCode,
+    string Name,
+    DateTimeOffset GeneratedAt,
+    IReadOnlyList<string> Columns,
+    IReadOnlyList<IReadOnlyList<string>> Rows,
+    int TotalRows);
+
+public sealed record ReportExportJobDto(
+    Guid Id,
+    string JobNumber,
+    string ReportCode,
+    string ReportName,
+    string Format,
+    string State,
+    int RowCount,
+    string RequestedBy,
+    DateTimeOffset RequestedAt,
+    DateTimeOffset? CompletedAt,
+    string FileName,
+    string Content,
+    string? ErrorMessage);
+
+public sealed record CreateReportExportRequest(string ReportCode, string Format);
+
 public sealed record ExternalSystemStatusDto(
     Guid Id,
     string SystemCode,
     string Name,
     string BaseUrl,
+    string AdapterMode,
     bool IsEnabled,
     string HealthStatus,
-    DateTimeOffset? LastCheckedAt);
+    DateTimeOffset? LastCheckedAt,
+    string? LastError);
 
 public sealed record AccountingExportBatchDto(
     Guid Id,
@@ -282,6 +497,9 @@ public sealed record AccountingExportBatchDto(
     string State,
     int BridgeCount,
     decimal TotalAmount,
+    int AttemptCount,
+    string? ExternalBatchNumber,
+    string? LastMessage,
     DateTimeOffset CreatedAt,
     DateTimeOffset? SentAt,
     DateTimeOffset? CompletedAt);
@@ -294,9 +512,15 @@ public sealed record IntegrationJobItemDto(
     string TargetSystemCode,
     string JobType,
     string State,
+    int AttemptNumber,
     string? RelatedBatchNumber,
+    string? ExternalJobNumber,
+    string? ExternalBatchNumber,
     string PayloadSummary,
+    string? ResponseCode,
+    string? ResponseSummary,
     DateTimeOffset QueuedAt,
+    DateTimeOffset? LastAttemptedAt,
     DateTimeOffset? CompletedAt,
     string? LastError);
 
@@ -304,13 +528,28 @@ public sealed record CompleteIntegrationJobRequest(
     string Outcome,
     string? ErrorMessage);
 
+public sealed record ReconcileIntegrationJobRequest(string? Notes);
+
 public interface IManufacturingRuntime
 {
     SessionDto Login(LoginRequest request);
     SessionDto GetSession(string? token);
+    SessionDto ChangePassword(string? token, ChangePasswordRequest request);
+    PasswordPolicyDto GetPasswordPolicy();
     IReadOnlyList<UserListItemDto> GetUsers(string? token);
+    IReadOnlyList<DepartmentListItemDto> GetDepartments(string? token);
+    DepartmentListItemDto CreateDepartment(string? token, CreateDepartmentRequest request);
+    IReadOnlyList<RoleListItemDto> GetRoles(string? token);
+    UserListItemDto UpdateUserDepartment(string? token, Guid userId, UpdateUserDepartmentRequest request);
+    UserListItemDto UpdateUserRoles(string? token, Guid userId, UpdateUserRolesRequest request);
+    PasswordResetResultDto ResetUserPassword(string? token, Guid userId);
+    UserListItemDto UnlockUser(string? token, Guid userId);
     IReadOnlyList<AuditLogItemDto> GetAuditLogs(string? token, int take);
     DashboardSnapshotDto GetDashboard(string? token);
+    IReadOnlyList<ReportCatalogItemDto> GetReportCatalog(string? token);
+    ReportPreviewDto GetReportPreview(string? token, string reportCode, int take);
+    IReadOnlyList<ReportExportJobDto> GetReportExportJobs(string? token, int take);
+    ReportExportJobDto CreateReportExport(string? token, CreateReportExportRequest request);
     IReadOnlyList<ProductListItemDto> GetProducts(string? token);
     IReadOnlyList<MaterialListItemDto> GetMaterials(string? token);
     IReadOnlyList<SupplierListItemDto> GetSuppliers(string? token);
@@ -339,13 +578,30 @@ public interface IManufacturingRuntime
     IReadOnlyList<CostLedgerItemDto> GetCostLedgers(string? token);
     IReadOnlyList<AccountingBridgeItemDto> GetAccountingBridges(string? token);
     AccountingBridgeItemDto UpdateAccountingBridgeState(string? token, Guid accountingBridgeId, UpdateAccountingBridgeStateRequest request);
+    IReadOnlyList<InvoiceListItemDto> GetInvoices(string? token);
+    InvoiceListItemDto CreateInvoice(string? token, CreateInvoiceRequest request);
+    InvoiceListItemDto IssueInvoice(string? token, Guid invoiceId);
     IReadOnlyList<QualityInspectionItemDto> GetQualityInspections(string? token);
     QualityInspectionItemDto CompleteQualityInspection(string? token, Guid inspectionId, CompleteQualityInspectionRequest request);
     AiManagementSummaryDto GenerateManagementSummary(string? token);
+    IReadOnlyList<WarehouseListItemDto> GetWarehouses(string? token);
     IReadOnlyList<ExternalSystemStatusDto> GetExternalSystems(string? token);
     IReadOnlyList<AccountingExportBatchDto> GetAccountingExportBatches(string? token);
     AccountingExportBatchDto CreateAccountingExportBatch(string? token, CreateAccountingExportBatchRequest request);
     IntegrationJobItemDto DispatchAccountingExportBatch(string? token, Guid exportBatchId);
     IReadOnlyList<IntegrationJobItemDto> GetIntegrationJobs(string? token);
     IntegrationJobItemDto CompleteIntegrationJob(string? token, Guid integrationJobId, CompleteIntegrationJobRequest request);
+    IntegrationJobItemDto ReconcileIntegrationJob(string? token, Guid integrationJobId, ReconcileIntegrationJobRequest request);
+    IReadOnlyList<WarehouseTransferListItemDto> GetWarehouseTransfers(string? token);
+    WarehouseTransferListItemDto CreateWarehouseTransfer(string? token, CreateWarehouseTransferRequest request);
+    IReadOnlyList<SettlementEntryDto> GetSettlements(string? token);
+    SettlementEntryDto ApplySettlement(string? token, Guid settlementEntryId, ApplySettlementRequest request);
+    IReadOnlyList<SettlementApplicationDto> GetSettlementApplications(string? token);
+    IReadOnlyList<SettlementAgingBucketDto> GetSettlementAging(string? token);
+    IReadOnlyList<AccountingPeriodDto> GetAccountingPeriods(string? token);
+    AccountingPeriodDto CloseAccountingPeriod(string? token, Guid accountingPeriodId, CloseAccountingPeriodRequest request);
+    IReadOnlyList<AccountingVoucherDto> GetAccountingVouchers(string? token);
+    AccountingVoucherDto CreateAccountingVoucher(string? token, CreateAccountingVoucherRequest request);
+    AccountingVoucherDto ApproveAccountingVoucher(string? token, Guid accountingVoucherId);
+    AccountingVoucherDto PostAccountingVoucher(string? token, Guid accountingVoucherId);
 }

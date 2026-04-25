@@ -1,24 +1,151 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { moduleRegistry } from '../app/moduleRegistry'
 import { useSession } from '../app/session'
 
 export function AppShell() {
   const location = useLocation()
-  const { availableUsers, error, isLoading, loginAs, session } = useSession()
-  const [isSwitchingUser, setIsSwitchingUser] = useState(false)
+  const { availableUsers, changePassword, error, isLoading, login, logout, session } = useSession()
+  const [loginForm, setLoginForm] = useState({ userName: 'admin', password: '' })
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' })
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const selectedKey = location.pathname.startsWith('/modules/')
     ? location.pathname.split('/')[2] ?? 'dashboard'
     : 'dashboard'
 
-  async function handleLoginAs(userName: string) {
-    setIsSwitchingUser(true)
+  async function handleLoginSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsSubmitting(true)
 
     try {
-      await loginAs(userName)
+      await login(loginForm.userName, loginForm.password)
     } finally {
-      setIsSwitchingUser(false)
+      setIsSubmitting(false)
     }
+  }
+
+  async function handleChangePasswordSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsSubmitting(true)
+
+    try {
+      await changePassword(passwordForm.currentPassword, passwordForm.newPassword)
+      setPasswordForm({ currentPassword: '', newPassword: '' })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  if (!session) {
+    return (
+      <div className="auth-shell">
+        <section className="auth-panel">
+          <span className="brand-kicker">Huashenglong Solar</span>
+          <h1 className="brand-title">Manufacturing Platform</h1>
+          <form className="auth-form" onSubmit={(event) => void handleLoginSubmit(event)}>
+            <label className="form-field">
+              <span>User name</span>
+              <input
+                autoComplete="username"
+                value={loginForm.userName}
+                onChange={(event) => setLoginForm((current) => ({ ...current, userName: event.target.value }))}
+              />
+            </label>
+            <label className="form-field">
+              <span>Password</span>
+              <input
+                autoComplete="current-password"
+                type="password"
+                value={loginForm.password}
+                onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
+              />
+            </label>
+
+            {error ? <div className="notice-banner notice-banner-error">{error}</div> : null}
+
+            <button
+              className="button button-primary"
+              disabled={isLoading || isSubmitting || !loginForm.userName || !loginForm.password}
+              type="submit"
+            >
+              Sign in
+            </button>
+          </form>
+
+          <div className="session-panel auth-users">
+            <span className="session-label">Local users</span>
+            <div className="session-switcher">
+              {availableUsers.map((userName) => (
+                <button
+                  key={userName}
+                  className={loginForm.userName === userName ? 'button button-primary' : 'button button-secondary'}
+                  disabled={isLoading || isSubmitting}
+                  onClick={() => setLoginForm((current) => ({ ...current, userName }))}
+                  type="button"
+                >
+                  {userName}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  if (session.user.mustChangePassword) {
+    return (
+      <div className="auth-shell">
+        <section className="auth-panel">
+          <span className="brand-kicker">{session.user.displayName}</span>
+          <h1 className="brand-title">Change Password</h1>
+          <form className="auth-form" onSubmit={(event) => void handleChangePasswordSubmit(event)}>
+            <label className="form-field">
+              <span>Current password</span>
+              <input
+                autoComplete="current-password"
+                type="password"
+                value={passwordForm.currentPassword}
+                onChange={(event) =>
+                  setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))
+                }
+              />
+            </label>
+            <label className="form-field">
+              <span>New password</span>
+              <input
+                autoComplete="new-password"
+                type="password"
+                value={passwordForm.newPassword}
+                onChange={(event) =>
+                  setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))
+                }
+              />
+            </label>
+
+            {error ? <div className="notice-banner notice-banner-error">{error}</div> : null}
+
+            <div className="action-row">
+              <button
+                className="button button-primary"
+                disabled={
+                  isLoading ||
+                  isSubmitting ||
+                  !passwordForm.currentPassword ||
+                  !passwordForm.newPassword
+                }
+                type="submit"
+              >
+                Update password
+              </button>
+              <button className="button button-secondary" onClick={logout} type="button">
+                Sign out
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
+    )
   }
 
   return (
@@ -74,21 +201,14 @@ export function AppShell() {
             </div>
 
             <div className="session-panel">
-              <span className="session-label">Demo login</span>
+              <span className="session-label">Session</span>
               <div className="session-switcher">
-                {availableUsers.map((userName) => (
-                  <button
-                    key={userName}
-                    className={session?.user.userName === userName ? 'button button-primary' : 'button button-secondary'}
-                    disabled={isLoading || isSwitchingUser}
-                    onClick={() => {
-                      void handleLoginAs(userName)
-                    }}
-                    type="button"
-                  >
-                    {userName}
-                  </button>
-                ))}
+                <button className="button button-primary" disabled type="button">
+                  {session.user.userName}
+                </button>
+                <button className="button button-secondary" disabled={isLoading} onClick={logout} type="button">
+                  Sign out
+                </button>
               </div>
             </div>
           </div>

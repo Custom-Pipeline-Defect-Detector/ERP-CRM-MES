@@ -4,10 +4,13 @@ This repository contains the initial scaffold for an on-premise manufacturing pl
 
 The current implementation is a persisted phase-1 vertical slice:
 - EF Core-backed backend with SQLite for development and SQL Server configuration for production
+- password-backed local sessions with RBAC permission checks, department maintenance, role assignment, expiring admin password reset/unlock, and audit logging
 - CRM to ERP to MES order flow
-- purchase orders and goods receipts into inventory
-- inventory postings, quality hold/release, work-order costing, customer shipment, and accounting bridge generation/progression
+- purchase orders, goods receipts, and warehouse transfers into inventory
+- inventory postings, quality hold/release, work-order costing, customer shipment, receivable/payable settlement support, invoice control, settlement aging, accounting voucher control, accounting-period close, and accounting bridge generation/progression
+- governed reporting catalog with live dataset previews and persisted CSV export jobs
 - AI management summary over governed reporting datasets with local fallback when the external gateway is unavailable
+- adapter-backed finance export batches with external job references, reconciliation, and manual override controls
 
 ## Structure
 
@@ -70,6 +73,7 @@ dotnet dotnet-ef database update --project src/backend/Host/ManufacturingPlatfor
 ## AI Gateway
 
 - Base URL is configured in `appsettings.json`
+- Default model is `claude-opus-4-6`
 - Keep the API key out of source control and provide it through environment variables when needed
 - OpenAI-compatible gateways should point to the API root, for example `https://host/v1`
 - The runtime posts to `chat/completions` when the configured base URL already ends in `/v1`
@@ -80,10 +84,35 @@ Example:
 ```powershell
 $env:Manufacturing__Ai__BaseUrl='https://api123.icu/v1'
 $env:Manufacturing__Ai__ApiKey='your-key-here'
+$env:Manufacturing__Ai__Model='claude-opus-4-6'
 dotnet run --project src/backend/Host/ManufacturingPlatform.Host/ManufacturingPlatform.Host.csproj --urls http://127.0.0.1:5099
 ```
 
 If the gateway is unavailable, times out, or returns an unsupported response, the AI module falls back to deterministic local summaries instead of failing the page.
+
+## Integration Adapter
+
+- The seeded `KINGDEE` external system uses `Mock` adapter mode so local development can dispatch and reconcile export batches without a live finance system
+- Mock dispatch produces an external job number and requires reconciliation before bridges move from `Exported` to `Posted`
+- Real deployments should switch the `ExternalSystems` row for `KINGDEE` to `Http` mode and configure:
+  - `BaseUrl`: external integration root
+  - `AccountingExportPath`: batch submission route
+  - `JobStatusPathTemplate`: status route containing `{externalJobNumber}`
+
+Current integration flow:
+
+1. Create export batch from `ReadyForExport` bridge entries.
+2. Dispatch the batch through the configured adapter.
+3. Record external job number, response code, and adapter message.
+4. Reconcile the job to move the batch to `Acknowledged` and bridges to `Posted`.
+5. Use manual override only when the external system response must be corrected operationally.
+
+## Reporting
+
+- The reporting module exposes a governed catalog of live operational datasets rather than direct raw-table access
+- Current phase-1 reports cover sales orders, production status, inventory balances, warehouse transfers, quality inspections, cost ledgers, settlements, invoices, settlement applications, settlement aging, accounting periods, accounting vouchers, and accounting bridges
+- Export jobs are persisted in the application database and currently generate CSV output
+- The export-job model is structured so later Excel/PDF rendering can be added without changing the report selection flow
 
 ## Demo Users
 
@@ -92,10 +121,19 @@ If the gateway is unavailable, times out, or returns an unsupported response, th
 - `planner`
 - `operator`
 - `quality`
+- `finance`
+
+Default local password for seeded demo users:
+
+```text
+Password123!
+```
+
+Older local databases that were created before password support are backfilled with this password and marked for password change on next login.
 
 ## Next implementation priorities
 
-1. Replace demo session login with real authentication, password policy, and RBAC administration.
-2. Add purchase, warehouse transfer, shipment, and finance settlement flows on top of the same persisted model.
-3. Formalize legacy integration adapters for Kingdee and the existing factory system.
-4. Expand reporting into exportable datasets, scheduled jobs, and drill-down management dashboards.
+1. Formalize legacy integration adapters for Kingdee and the existing factory system.
+2. Expand reporting into filters, scheduled jobs, Excel/PDF generation, and richer drill-down management dashboards.
+3. Add user lifecycle management beyond the current seeded users, including create/deactivate user flows and optional AD/LDAP sync.
+4. Add deeper statutory-finance outputs, including voucher export file formats, tax invoice fields, and bank reconciliation import.

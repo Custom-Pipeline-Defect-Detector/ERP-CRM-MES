@@ -3,6 +3,7 @@ export interface SessionUser {
   userName: string
   displayName: string
   department: string
+  mustChangePassword: boolean
   roles: string[]
   permissions: string[]
 }
@@ -17,8 +18,45 @@ export interface UserListItem {
   id: string
   userName: string
   displayName: string
+  departmentId: string
   department: string
+  mustChangePassword: boolean
+  passwordResetExpiresAt: string | null
+  failedAccessCount: number
+  lockedUntil: string | null
+  lastLoginAt: string | null
   roles: string[]
+}
+
+export interface DepartmentListItem {
+  id: string
+  code: string
+  name: string
+  userCount: number
+}
+
+export interface RoleListItem {
+  id: string
+  code: string
+  name: string
+  userCount: number
+  permissions: string[]
+}
+
+export interface PasswordResetResult {
+  userId: string
+  userName: string
+  temporaryPassword: string
+  mustChangePassword: boolean
+  expiresAt: string
+}
+
+export interface PasswordPolicy {
+  minimumLength: number
+  requireUppercase: boolean
+  requireLowercase: boolean
+  requireDigit: boolean
+  requireSymbol: boolean
 }
 
 export interface AuditLogItem {
@@ -86,6 +124,14 @@ export interface SupplierListItem {
   paymentTerms: string
 }
 
+export interface WarehouseListItem {
+  id: string
+  code: string
+  name: string
+  isQualityControlled: boolean
+  supportsWip: boolean
+}
+
 export interface PurchaseOrderListItem {
   id: string
   orderNumber: string
@@ -114,6 +160,22 @@ export interface GoodsReceiptListItem {
   state: string
   batchNumber: string
   receivedOn: string
+}
+
+export interface WarehouseTransferListItem {
+  id: string
+  transferNumber: string
+  fromWarehouseCode: string
+  toWarehouseCode: string
+  itemCode: string
+  itemName: string
+  quantity: number
+  batchNumber: string
+  qualityStatus: string
+  state: string
+  unitCost: number
+  totalCost: number
+  transferredAt: string
 }
 
 export interface SalesOrderListItem {
@@ -178,6 +240,39 @@ export interface DashboardSnapshot {
   recentActivity: ActivityFeedItem[]
 }
 
+export interface ReportCatalogItem {
+  reportCode: string
+  name: string
+  ownerModule: string
+  description: string
+  defaultTake: number
+}
+
+export interface ReportPreview {
+  reportCode: string
+  name: string
+  generatedAt: string
+  columns: string[]
+  rows: string[][]
+  totalRows: number
+}
+
+export interface ReportExportJob {
+  id: string
+  jobNumber: string
+  reportCode: string
+  reportName: string
+  format: string
+  state: string
+  rowCount: number
+  requestedBy: string
+  requestedAt: string
+  completedAt: string | null
+  fileName: string
+  content: string
+  errorMessage: string | null
+}
+
 export interface InventoryBalanceItem {
   itemCode: string
   itemName: string
@@ -212,6 +307,103 @@ export interface AccountingBridgeItem {
   generatedAt: string
 }
 
+export interface SettlementEntry {
+  id: string
+  entryNumber: string
+  settlementType: string
+  sourceDocumentType: string
+  sourceDocumentNumber: string
+  counterpartyName: string
+  totalAmount: number
+  settledAmount: number
+  outstandingAmount: number
+  dueDate: string
+  state: string
+  invoiceNumber: string | null
+  invoiceState: string | null
+  createdAt: string
+  lastSettledAt: string | null
+}
+
+export interface InvoiceListItem {
+  id: string
+  invoiceNumber: string
+  invoiceType: string
+  sourceDocumentType: string
+  sourceDocumentNumber: string
+  counterpartyName: string
+  settlementEntryNumber: string
+  amount: number
+  issuedOn: string
+  dueDate: string
+  state: string
+  createdAt: string
+}
+
+export interface SettlementApplicationItem {
+  id: string
+  applicationNumber: string
+  settlementEntryNumber: string
+  counterpartyName: string
+  invoiceNumber: string | null
+  amount: number
+  reference: string | null
+  appliedBy: string
+  appliedAt: string
+}
+
+export interface SettlementAgingBucket {
+  settlementType: string
+  openEntries: number
+  currentAmount: number
+  days1To30Amount: number
+  days31To60Amount: number
+  days61To90Amount: number
+  over90DaysAmount: number
+  totalOutstandingAmount: number
+}
+
+export interface AccountingPeriod {
+  id: string
+  periodCode: string
+  startDate: string
+  endDate: string
+  state: string
+  closedBy: string | null
+  closedAt: string | null
+  closeNotes: string | null
+}
+
+export interface AccountingVoucherLine {
+  id: string
+  lineNumber: number
+  sourceBridgeNumber: string
+  sourceDocumentNumber: string
+  sourceEvent: string
+  accountCode: string
+  debitAmount: number
+  creditAmount: number
+  narrative: string
+}
+
+export interface AccountingVoucher {
+  id: string
+  voucherNumber: string
+  periodCode: string
+  state: string
+  totalDebitAmount: number
+  totalCreditAmount: number
+  lineCount: number
+  createdBy: string
+  createdAt: string
+  approvedBy: string | null
+  approvedAt: string | null
+  postedBy: string | null
+  postedAt: string | null
+  notes: string | null
+  lines: AccountingVoucherLine[]
+}
+
 export interface QualityInspectionItem {
   id: string
   inspectionNumber: string
@@ -242,9 +434,11 @@ export interface ExternalSystemStatus {
   systemCode: string
   name: string
   baseUrl: string
+  adapterMode: string
   isEnabled: boolean
   healthStatus: string
   lastCheckedAt: string | null
+  lastError: string | null
 }
 
 export interface AccountingExportBatch {
@@ -254,6 +448,9 @@ export interface AccountingExportBatch {
   state: string
   bridgeCount: number
   totalAmount: number
+  attemptCount: number
+  externalBatchNumber: string | null
+  lastMessage: string | null
   createdAt: string
   sentAt: string | null
   completedAt: string | null
@@ -265,9 +462,15 @@ export interface IntegrationJobItem {
   targetSystemCode: string
   jobType: string
   state: string
+  attemptNumber: number
   relatedBatchNumber: string | null
+  externalJobNumber: string | null
+  externalBatchNumber: string | null
   payloadSummary: string
+  responseCode: string | null
+  responseSummary: string | null
   queuedAt: string
+  lastAttemptedAt: string | null
   completedAt: string | null
   lastError: string | null
 }

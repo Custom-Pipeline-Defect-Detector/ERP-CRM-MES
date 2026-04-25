@@ -26,10 +26,18 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
     public DbSet<WorkOrderEntity> WorkOrders => Set<WorkOrderEntity>();
     public DbSet<WorkOrderOperationEntity> WorkOrderOperations => Set<WorkOrderOperationEntity>();
     public DbSet<InventoryTransactionEntity> InventoryTransactions => Set<InventoryTransactionEntity>();
+    public DbSet<WarehouseTransferEntity> WarehouseTransfers => Set<WarehouseTransferEntity>();
     public DbSet<CostPostingEntity> CostPostings => Set<CostPostingEntity>();
     public DbSet<AccountingBridgeEntryEntity> AccountingBridgeEntries => Set<AccountingBridgeEntryEntity>();
+    public DbSet<SettlementEntryEntity> SettlementEntries => Set<SettlementEntryEntity>();
+    public DbSet<InvoiceEntity> Invoices => Set<InvoiceEntity>();
+    public DbSet<SettlementApplicationEntity> SettlementApplications => Set<SettlementApplicationEntity>();
+    public DbSet<AccountingPeriodEntity> AccountingPeriods => Set<AccountingPeriodEntity>();
+    public DbSet<AccountingVoucherEntity> AccountingVouchers => Set<AccountingVoucherEntity>();
+    public DbSet<AccountingVoucherLineEntity> AccountingVoucherLines => Set<AccountingVoucherLineEntity>();
     public DbSet<QualityInspectionEntity> QualityInspections => Set<QualityInspectionEntity>();
     public DbSet<AiInsightRunEntity> AiInsightRuns => Set<AiInsightRunEntity>();
+    public DbSet<ReportExportJobEntity> ReportExportJobs => Set<ReportExportJobEntity>();
     public DbSet<ExternalSystemEntity> ExternalSystems => Set<ExternalSystemEntity>();
     public DbSet<AccountingExportBatchEntity> AccountingExportBatches => Set<AccountingExportBatchEntity>();
     public DbSet<IntegrationJobEntity> IntegrationJobs => Set<IntegrationJobEntity>();
@@ -57,11 +65,23 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
         modelBuilder.Entity<ProductionOrderEntity>().HasIndex(entity => entity.ProductionOrderNumber).IsUnique();
         modelBuilder.Entity<WorkOrderEntity>().HasIndex(entity => entity.WorkOrderNumber).IsUnique();
         modelBuilder.Entity<InventoryTransactionEntity>().HasIndex(entity => entity.TransactionNumber).IsUnique();
+        modelBuilder.Entity<WarehouseTransferEntity>().HasIndex(entity => entity.TransferNumber).IsUnique();
         modelBuilder.Entity<AccountingBridgeEntryEntity>().HasIndex(entity => entity.BridgeNumber).IsUnique();
+        modelBuilder.Entity<SettlementEntryEntity>().HasIndex(entity => entity.EntryNumber).IsUnique();
+        modelBuilder.Entity<InvoiceEntity>().HasIndex(entity => entity.InvoiceNumber).IsUnique();
+        modelBuilder.Entity<InvoiceEntity>().HasIndex(entity => entity.SettlementEntryId).IsUnique();
+        modelBuilder.Entity<SettlementApplicationEntity>().HasIndex(entity => entity.ApplicationNumber).IsUnique();
+        modelBuilder.Entity<AccountingPeriodEntity>().HasIndex(entity => entity.PeriodCode).IsUnique();
+        modelBuilder.Entity<AccountingVoucherEntity>().HasIndex(entity => entity.VoucherNumber).IsUnique();
+        modelBuilder.Entity<AccountingVoucherEntity>().HasIndex(entity => entity.PeriodCode);
+        modelBuilder.Entity<AccountingVoucherLineEntity>().HasIndex(entity => entity.AccountingBridgeEntryId);
+        modelBuilder.Entity<AccountingVoucherLineEntity>().HasIndex(entity => new { entity.AccountingVoucherId, entity.LineNumber }).IsUnique();
         modelBuilder.Entity<QualityInspectionEntity>().HasIndex(entity => entity.InspectionNumber).IsUnique();
+        modelBuilder.Entity<ReportExportJobEntity>().HasIndex(entity => entity.JobNumber).IsUnique();
         modelBuilder.Entity<ExternalSystemEntity>().HasIndex(entity => entity.SystemCode).IsUnique();
         modelBuilder.Entity<AccountingExportBatchEntity>().HasIndex(entity => entity.BatchNumber).IsUnique();
         modelBuilder.Entity<IntegrationJobEntity>().HasIndex(entity => entity.JobNumber).IsUnique();
+        modelBuilder.Entity<IntegrationJobEntity>().HasIndex(entity => entity.ExternalJobNumber);
 
         modelBuilder.Entity<PurchaseOrderEntity>()
             .HasOne(entity => entity.Supplier)
@@ -145,6 +165,48 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
             .HasOne(entity => entity.Warehouse)
             .WithMany(entity => entity.InventoryTransactions)
             .HasForeignKey(entity => entity.WarehouseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<WarehouseTransferEntity>()
+            .HasOne(entity => entity.FromWarehouse)
+            .WithMany()
+            .HasForeignKey(entity => entity.FromWarehouseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<WarehouseTransferEntity>()
+            .HasOne(entity => entity.ToWarehouse)
+            .WithMany()
+            .HasForeignKey(entity => entity.ToWarehouseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<InvoiceEntity>()
+            .HasOne(entity => entity.SettlementEntry)
+            .WithOne(entity => entity.Invoice)
+            .HasForeignKey<InvoiceEntity>(entity => entity.SettlementEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<SettlementApplicationEntity>()
+            .HasOne(entity => entity.SettlementEntry)
+            .WithMany(entity => entity.Applications)
+            .HasForeignKey(entity => entity.SettlementEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<SettlementApplicationEntity>()
+            .HasOne(entity => entity.Invoice)
+            .WithMany(entity => entity.Applications)
+            .HasForeignKey(entity => entity.InvoiceId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<AccountingVoucherLineEntity>()
+            .HasOne(entity => entity.AccountingVoucher)
+            .WithMany(entity => entity.Lines)
+            .HasForeignKey(entity => entity.AccountingVoucherId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<AccountingVoucherLineEntity>()
+            .HasOne(entity => entity.AccountingBridgeEntry)
+            .WithMany()
+            .HasForeignKey(entity => entity.AccountingBridgeEntryId)
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<CostPostingEntity>()

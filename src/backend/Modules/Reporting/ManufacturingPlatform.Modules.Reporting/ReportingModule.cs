@@ -33,6 +33,10 @@ public sealed class ReportingModule : IModule
 
         group.MapGet("/overview", Results);
         group.MapGet("/dashboard", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetDashboard(httpContext.GetSessionToken())));
+        group.MapGet("/catalog", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetReportCatalog(httpContext.GetSessionToken())));
+        group.MapGet("/reports/{reportCode}", (HttpContext httpContext, IManufacturingRuntime runtime, string reportCode, int? take) => RuntimeApi.Execute(() => runtime.GetReportPreview(httpContext.GetSessionToken(), reportCode, take ?? 20)));
+        group.MapGet("/export-jobs", (HttpContext httpContext, IManufacturingRuntime runtime, int? take) => RuntimeApi.Execute(() => runtime.GetReportExportJobs(httpContext.GetSessionToken(), take ?? 20)));
+        group.MapPost("/export-jobs", (HttpContext httpContext, IManufacturingRuntime runtime, CreateReportExportRequest request) => RuntimeApi.Execute(() => runtime.CreateReportExport(httpContext.GetSessionToken(), request)));
     }
 
     private static Ok<ReportingModuleOverview> Results()

@@ -37,6 +37,7 @@ public sealed class IntegrationModule : IModule
         group.MapPost("/accounting-export-batches", (HttpContext httpContext, IManufacturingRuntime runtime, CreateAccountingExportBatchRequest request) => RuntimeApi.Execute(() => runtime.CreateAccountingExportBatch(httpContext.GetSessionToken(), request)));
         group.MapPost("/accounting-export-batches/{exportBatchId:guid}/dispatch", (HttpContext httpContext, IManufacturingRuntime runtime, Guid exportBatchId) => RuntimeApi.Execute(() => runtime.DispatchAccountingExportBatch(httpContext.GetSessionToken(), exportBatchId)));
         group.MapGet("/jobs", (HttpContext httpContext, IManufacturingRuntime runtime) => RuntimeApi.Execute(() => runtime.GetIntegrationJobs(httpContext.GetSessionToken())));
+        group.MapPost("/jobs/{integrationJobId:guid}/reconcile", (HttpContext httpContext, IManufacturingRuntime runtime, Guid integrationJobId, ReconcileIntegrationJobRequest request) => RuntimeApi.Execute(() => runtime.ReconcileIntegrationJob(httpContext.GetSessionToken(), integrationJobId, request)));
         group.MapPost("/jobs/{integrationJobId:guid}/complete", (HttpContext httpContext, IManufacturingRuntime runtime, Guid integrationJobId, CompleteIntegrationJobRequest request) => RuntimeApi.Execute(() => runtime.CompleteIntegrationJob(httpContext.GetSessionToken(), integrationJobId, request)));
     }
 

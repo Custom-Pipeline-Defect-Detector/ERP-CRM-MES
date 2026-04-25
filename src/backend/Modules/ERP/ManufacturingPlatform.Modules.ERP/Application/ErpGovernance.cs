@@ -10,7 +10,13 @@ public static class ErpGovernance
         new(nameof(Supplier), "ERP", ["Reporting", "Integration"], "ERP owns supplier qualification and commercial procurement records."),
         new(nameof(Warehouse), "ERP", ["MES", "Quality", "Reporting"], "Warehouse structure and stock ledger ownership remain in ERP."),
         new(nameof(InventoryTransaction), "ERP", ["MES", "Quality", "Reporting", "Integration"], "ERP owns the stock ledger and inventory valuation events."),
+        new(nameof(WarehouseTransfer), "ERP", ["Reporting"], "ERP owns intra-company warehouse transfer documents and transfer execution audit."),
         new(nameof(ProductionOrder), "ERP / production planning", ["MES", "Reporting", "Integration"], "ERP owns production demand planning and release."),
+        new(nameof(InvoiceDocument), "ERP / finance support", ["Reporting", "Integration"], "ERP owns operational invoice support documents tied to shipments, receipts, and settlement entries."),
+        new(nameof(SettlementEntry), "ERP / finance support", ["Reporting", "Integration"], "ERP owns receivable and payable support entries until the ledger confirms settlement."),
+        new(nameof(SettlementApplication), "ERP / finance support", ["Reporting", "Integration"], "ERP owns settlement application history for audit, reconciliation, and aging traceability."),
+        new(nameof(AccountingPeriod), "ERP / finance support", ["Reporting", "Integration"], "ERP owns period status and close-control decisions for the operational finance layer."),
+        new(nameof(AccountingVoucher), "ERP / finance support", ["Reporting", "Integration"], "ERP owns balanced voucher documents generated from posted bridge entries before period close."),
         new(nameof(AccountingBridgeEntry), "ERP", ["Integration", "Reporting"], "ERP owns accounting bridge entries and posting confirmation back from Kingdee.")
     ];
 
@@ -40,6 +46,51 @@ public static class ErpGovernance
                 new(nameof(ProductionOrderState.InExecution), nameof(ProductionOrderState.TechnicallyCompleted), "Complete execution", "MES"),
                 new(nameof(ProductionOrderState.TechnicallyCompleted), nameof(ProductionOrderState.Costed), "Settle cost", "Cost accounting"),
                 new(nameof(ProductionOrderState.Costed), nameof(ProductionOrderState.Closed), "Close production order", "Planning")
+            ]),
+        new(
+            nameof(WarehouseTransfer),
+            "Warehouse control",
+            Enum.GetNames<WarehouseTransferState>(),
+            [
+                new(nameof(WarehouseTransferState.Draft), nameof(WarehouseTransferState.Completed), "Execute stock transfer", "Warehouse"),
+                new(nameof(WarehouseTransferState.Draft), nameof(WarehouseTransferState.Cancelled), "Cancel draft transfer", "Warehouse")
+            ]),
+        new(
+            nameof(SettlementEntry),
+            "Finance support",
+            Enum.GetNames<SettlementState>(),
+            [
+                new(nameof(SettlementState.Open), nameof(SettlementState.PartiallySettled), "Apply partial settlement", "Finance"),
+                new(nameof(SettlementState.Open), nameof(SettlementState.Settled), "Settle in full", "Finance"),
+                new(nameof(SettlementState.PartiallySettled), nameof(SettlementState.Settled), "Complete settlement", "Finance"),
+                new(nameof(SettlementState.Open), nameof(SettlementState.Cancelled), "Cancel erroneous settlement support entry", "Finance")
+            ]),
+        new(
+            nameof(InvoiceDocument),
+            "Finance support",
+            Enum.GetNames<InvoiceState>(),
+            [
+                new(nameof(InvoiceState.Draft), nameof(InvoiceState.Issued), "Issue invoice", "Finance"),
+                new(nameof(InvoiceState.Issued), nameof(InvoiceState.PartiallySettled), "Apply partial settlement", "Finance"),
+                new(nameof(InvoiceState.Issued), nameof(InvoiceState.Settled), "Settle in full", "Finance"),
+                new(nameof(InvoiceState.PartiallySettled), nameof(InvoiceState.Settled), "Complete settlement", "Finance"),
+                new(nameof(InvoiceState.Draft), nameof(InvoiceState.Cancelled), "Cancel draft invoice", "Finance")
+            ]),
+        new(
+            nameof(AccountingPeriod),
+            "Finance support",
+            Enum.GetNames<AccountingPeriodState>(),
+            [
+                new(nameof(AccountingPeriodState.Open), nameof(AccountingPeriodState.Closed), "Close accounting period", "Finance controller")
+            ]),
+        new(
+            nameof(AccountingVoucher),
+            "Finance support",
+            Enum.GetNames<AccountingVoucherState>(),
+            [
+                new(nameof(AccountingVoucherState.Draft), nameof(AccountingVoucherState.Approved), "Approve balanced voucher", "Finance controller"),
+                new(nameof(AccountingVoucherState.Approved), nameof(AccountingVoucherState.Posted), "Post voucher into finance handoff layer", "Finance controller"),
+                new(nameof(AccountingVoucherState.Draft), nameof(AccountingVoucherState.Cancelled), "Cancel erroneous draft voucher", "Finance controller")
             ])
     ];
 
@@ -47,6 +98,12 @@ public static class ErpGovernance
     [
         new(nameof(GoodsReceipt), "Increase inventory and create payable bridge basis", "Inventory / GRNI / AP bridge", "Accepted receipts create stock and accounting bridge events."),
         new(nameof(SalesShipment), "Decrease inventory and create revenue / receivable bridge basis", "Inventory / COGS / AR bridge", "Shipped quantities create shipment and cost-recognition bridge events."),
+        new(nameof(WarehouseTransfer), "Move inventory between internal locations without changing enterprise valuation", "Inventory sub-ledger", "Transfers preserve batch, quality status, and unit cost while changing warehouse ownership."),
+        new(nameof(InvoiceDocument), "Create controlled AP/AR invoice support documents from operational events", "AP / AR invoice bridge", "Issued invoices provide a finance-controlled document layer above receipts and shipments."),
+        new(nameof(SettlementEntry), "Track open receivables and payables from operational transactions until cleared", "AR / AP clearing bridge", "Settlements update outstanding operational balances and create accounting bridge events for posting."),
+        new(nameof(SettlementApplication), "Record cash application or offset history against open entries", "AR / AP settlement history", "Settlement history supports aging, audit, and reconciliation without mutating source transactions."),
+        new(nameof(AccountingVoucher), "Create balanced debit and credit lines from posted bridge entries", "Journal voucher", "Vouchers create the auditable finance-control document between operations and statutory ledger handoff."),
+        new(nameof(AccountingPeriod), "Freeze operational finance activity for a month-end close checkpoint", "Close control", "Period close validates invoice, bridge, and voucher readiness before finance finalization."),
         new(nameof(InventoryTransaction), "Post inventory, WIP, scrap, or transfer valuation changes", "Inventory / WIP / Scrap", "Every inventory-affecting transaction must create a value-layer event."),
         new(nameof(AccountingBridgeEntry), "Export controlled voucher-ready posting data", "Kingdee voucher interface", "ERP generates the bridge output even when Kingdee remains the ledger.")
     ];

@@ -42,7 +42,9 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod());
 });
 builder.Services.AddHttpClient(nameof(ManufacturingAiSummaryService));
+builder.Services.AddHttpClient(nameof(AccountingExportGatewayService));
 builder.Services.AddScoped<ManufacturingAiSummaryService>();
+builder.Services.AddScoped<AccountingExportGatewayService>();
 builder.Services.AddScoped<IManufacturingRuntime, EfManufacturingRuntime>();
 
 IModule[] modules =

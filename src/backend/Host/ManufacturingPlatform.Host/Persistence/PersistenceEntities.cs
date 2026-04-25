@@ -36,6 +36,13 @@ public sealed class UserEntity
     public Guid Id { get; set; }
     public required string UserName { get; set; }
     public required string DisplayName { get; set; }
+    public required string PasswordHash { get; set; }
+    public DateTimeOffset PasswordChangedAt { get; set; }
+    public bool MustChangePassword { get; set; }
+    public DateTimeOffset? PasswordResetExpiresAt { get; set; }
+    public int FailedAccessCount { get; set; }
+    public DateTimeOffset? LockedUntil { get; set; }
+    public DateTimeOffset? LastLoginAt { get; set; }
     public Guid DepartmentId { get; set; }
     public DepartmentEntity? Department { get; set; }
     public ICollection<UserRoleEntity> UserRoles { get; set; } = [];
@@ -289,6 +296,25 @@ public sealed class InventoryTransactionEntity
     public DateTimeOffset OccurredAt { get; set; }
 }
 
+public sealed class WarehouseTransferEntity
+{
+    public Guid Id { get; set; }
+    public required string TransferNumber { get; set; }
+    public Guid FromWarehouseId { get; set; }
+    public WarehouseEntity? FromWarehouse { get; set; }
+    public Guid ToWarehouseId { get; set; }
+    public WarehouseEntity? ToWarehouse { get; set; }
+    public required string ItemCode { get; set; }
+    public required string ItemName { get; set; }
+    public decimal Quantity { get; set; }
+    public required string BatchNumber { get; set; }
+    public decimal UnitCost { get; set; }
+    public decimal TotalCost { get; set; }
+    public InventoryQualityStatus QualityStatus { get; set; }
+    public WarehouseTransferState State { get; set; }
+    public DateTimeOffset TransferredAt { get; set; }
+}
+
 public sealed class CostPostingEntity
 {
     public Guid Id { get; set; }
@@ -314,6 +340,104 @@ public sealed class AccountingBridgeEntryEntity
     public DateTimeOffset GeneratedAt { get; set; }
     public Guid? ExportBatchId { get; set; }
     public AccountingExportBatchEntity? ExportBatch { get; set; }
+}
+
+public sealed class SettlementEntryEntity
+{
+    public Guid Id { get; set; }
+    public required string EntryNumber { get; set; }
+    public SettlementType SettlementType { get; set; }
+    public SettlementState State { get; set; }
+    public required string SourceDocumentType { get; set; }
+    public required string SourceDocumentNumber { get; set; }
+    public required string CounterpartyName { get; set; }
+    public decimal TotalAmount { get; set; }
+    public decimal SettledAmount { get; set; }
+    public DateOnly DueDate { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? LastSettledAt { get; set; }
+    public InvoiceEntity? Invoice { get; set; }
+    public ICollection<SettlementApplicationEntity> Applications { get; set; } = [];
+}
+
+public sealed class InvoiceEntity
+{
+    public Guid Id { get; set; }
+    public required string InvoiceNumber { get; set; }
+    public InvoiceType InvoiceType { get; set; }
+    public InvoiceState State { get; set; }
+    public Guid SettlementEntryId { get; set; }
+    public SettlementEntryEntity? SettlementEntry { get; set; }
+    public required string SourceDocumentType { get; set; }
+    public required string SourceDocumentNumber { get; set; }
+    public required string CounterpartyName { get; set; }
+    public decimal Amount { get; set; }
+    public DateOnly IssuedOn { get; set; }
+    public DateOnly DueDate { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public ICollection<SettlementApplicationEntity> Applications { get; set; } = [];
+}
+
+public sealed class SettlementApplicationEntity
+{
+    public Guid Id { get; set; }
+    public required string ApplicationNumber { get; set; }
+    public Guid SettlementEntryId { get; set; }
+    public SettlementEntryEntity? SettlementEntry { get; set; }
+    public Guid? InvoiceId { get; set; }
+    public InvoiceEntity? Invoice { get; set; }
+    public decimal Amount { get; set; }
+    public string? Reference { get; set; }
+    public required string AppliedBy { get; set; }
+    public DateTimeOffset AppliedAt { get; set; }
+}
+
+public sealed class AccountingPeriodEntity
+{
+    public Guid Id { get; set; }
+    public required string PeriodCode { get; set; }
+    public AccountingPeriodState State { get; set; }
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+    public string? ClosedBy { get; set; }
+    public DateTimeOffset? ClosedAt { get; set; }
+    public string? CloseNotes { get; set; }
+}
+
+public sealed class AccountingVoucherEntity
+{
+    public Guid Id { get; set; }
+    public required string VoucherNumber { get; set; }
+    public required string PeriodCode { get; set; }
+    public AccountingVoucherState State { get; set; }
+    public decimal TotalDebitAmount { get; set; }
+    public decimal TotalCreditAmount { get; set; }
+    public int LineCount { get; set; }
+    public required string CreatedBy { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public string? ApprovedBy { get; set; }
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public string? PostedBy { get; set; }
+    public DateTimeOffset? PostedAt { get; set; }
+    public string? Notes { get; set; }
+    public ICollection<AccountingVoucherLineEntity> Lines { get; set; } = [];
+}
+
+public sealed class AccountingVoucherLineEntity
+{
+    public Guid Id { get; set; }
+    public Guid AccountingVoucherId { get; set; }
+    public AccountingVoucherEntity? AccountingVoucher { get; set; }
+    public Guid AccountingBridgeEntryId { get; set; }
+    public AccountingBridgeEntryEntity? AccountingBridgeEntry { get; set; }
+    public int LineNumber { get; set; }
+    public required string SourceBridgeNumber { get; set; }
+    public required string SourceDocumentNumber { get; set; }
+    public required string SourceEvent { get; set; }
+    public required string AccountCode { get; set; }
+    public decimal DebitAmount { get; set; }
+    public decimal CreditAmount { get; set; }
+    public required string Narrative { get; set; }
 }
 
 public sealed class QualityInspectionEntity
@@ -347,15 +471,36 @@ public sealed class AiInsightRunEntity
     public DateTimeOffset GeneratedAt { get; set; }
 }
 
+public sealed class ReportExportJobEntity
+{
+    public Guid Id { get; set; }
+    public required string JobNumber { get; set; }
+    public required string ReportCode { get; set; }
+    public required string ReportName { get; set; }
+    public required string Format { get; set; }
+    public required string State { get; set; }
+    public int RowCount { get; set; }
+    public required string RequestedBy { get; set; }
+    public DateTimeOffset RequestedAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+    public required string FileName { get; set; }
+    public required string Content { get; set; }
+    public string? ErrorMessage { get; set; }
+}
+
 public sealed class ExternalSystemEntity
 {
     public Guid Id { get; set; }
     public required string SystemCode { get; set; }
     public required string Name { get; set; }
     public required string BaseUrl { get; set; }
+    public ExternalSystemAdapterMode AdapterMode { get; set; }
+    public required string AccountingExportPath { get; set; }
+    public required string JobStatusPathTemplate { get; set; }
     public bool IsEnabled { get; set; }
     public ExternalSystemHealthStatus HealthStatus { get; set; }
     public DateTimeOffset? LastCheckedAt { get; set; }
+    public string? LastError { get; set; }
 }
 
 public sealed class AccountingExportBatchEntity
@@ -366,6 +511,9 @@ public sealed class AccountingExportBatchEntity
     public ExportBatchState State { get; set; }
     public int BridgeCount { get; set; }
     public decimal TotalAmount { get; set; }
+    public int AttemptCount { get; set; }
+    public string? ExternalBatchNumber { get; set; }
+    public string? LastMessage { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? SentAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
@@ -382,8 +530,17 @@ public sealed class IntegrationJobEntity
     public IntegrationJobState State { get; set; }
     public Guid? ExportBatchId { get; set; }
     public AccountingExportBatchEntity? ExportBatch { get; set; }
+    public int AttemptNumber { get; set; }
+    public string? DispatchEndpoint { get; set; }
+    public string? ExternalJobNumber { get; set; }
+    public string? ExternalBatchNumber { get; set; }
     public required string PayloadSummary { get; set; }
+    public string? RequestPayloadJson { get; set; }
+    public string? ResponsePayloadJson { get; set; }
+    public string? ResponseCode { get; set; }
+    public string? LastMessage { get; set; }
     public string? LastError { get; set; }
     public DateTimeOffset QueuedAt { get; set; }
+    public DateTimeOffset? LastAttemptedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
 }

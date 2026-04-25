@@ -9,7 +9,7 @@ export const integrationModule: ModuleDefinition = {
     'Isolates all external-system synchronization logic so the platform can start with coexistence, batch finance exports cleanly, and move toward gradual replacement without corrupting core domains.',
   capabilities: [
     'Accounting export batches over approved bridge entries',
-    'Kingdee adapter job dispatch and completion tracking',
+    'Kingdee adapter job dispatch, retry, and reconciliation tracking',
     'Master-data and transaction synchronization boundaries',
     'Retry queues, failure logging, and reconciliation support',
   ],

@@ -40,6 +40,32 @@ a {
   grid-template-columns: 280px 1fr;
 }
 
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-panel {
+  width: min(100%, 460px);
+  padding: 28px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(16, 24, 32, 0.08);
+  box-shadow: 0 16px 42px rgba(16, 24, 32, 0.12);
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.auth-users {
+  margin-top: 20px;
+}
+
 .sidebar {
   background:
     linear-gradient(180deg, rgba(16, 24, 32, 0.98), rgba(22, 34, 46, 0.98)),
@@ -409,8 +435,45 @@ a {
   font: inherit;
 }
 
+.role-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.role-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(16, 24, 32, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.role-checkbox input {
+  margin-top: 3px;
+}
+
 .table-shell {
   overflow-x: auto;
+}
+
+.table-shell-spaced {
+  margin-top: 18px;
+}
+
+.code-block-shell {
+  margin: 0;
+  max-height: 420px;
+  overflow: auto;
+  padding: 16px;
+  border-radius: 16px;
+  background: #0f1720;
+  color: #d7e5f3;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .data-table {
@@ -469,6 +532,7 @@ a {
   .content-grid,
   .module-grid,
   .form-grid,
+  .role-checkbox-grid,
   .definition-grid {
     grid-template-columns: 1fr;
   }

@@ -74,6 +74,13 @@ public enum InventoryQualityStatus
     Rejected
 }
 
+public enum WarehouseTransferState
+{
+    Draft,
+    Completed,
+    Cancelled
+}
+
 public enum ProductionOrderState
 {
     DraftPlan,
@@ -94,6 +101,49 @@ public enum AccountingBridgeState
     Posted,
     Reconciled,
     Failed
+}
+
+public enum SettlementType
+{
+    Payable,
+    Receivable
+}
+
+public enum SettlementState
+{
+    Open,
+    PartiallySettled,
+    Settled,
+    Cancelled
+}
+
+public enum InvoiceType
+{
+    Receivable,
+    Payable
+}
+
+public enum InvoiceState
+{
+    Draft,
+    Issued,
+    PartiallySettled,
+    Settled,
+    Cancelled
+}
+
+public enum AccountingPeriodState
+{
+    Open,
+    Closed
+}
+
+public enum AccountingVoucherState
+{
+    Draft,
+    Approved,
+    Posted,
+    Cancelled
 }
 
 public sealed record Supplier(
@@ -207,6 +257,17 @@ public sealed record InventoryLedgerEntry(
     decimal Amount,
     string ValuationLayer);
 
+public sealed record WarehouseTransfer(
+    Guid Id,
+    string TransferNumber,
+    WarehouseTransferState State,
+    Guid FromWarehouseId,
+    Guid ToWarehouseId,
+    string ItemCode,
+    decimal Quantity,
+    string? BatchNumber,
+    DateTimeOffset TransferredAt);
+
 public sealed record ProductionOrder(
     Guid Id,
     string ProductionOrderNumber,
@@ -266,6 +327,68 @@ public sealed record AccountingBridgeEntry(
     AccountingBridgeState State,
     decimal Amount,
     string PostingAccount);
+
+public sealed record SettlementEntry(
+    Guid Id,
+    string EntryNumber,
+    SettlementType SettlementType,
+    SettlementState State,
+    string SourceDocumentType,
+    string SourceDocumentNumber,
+    string CounterpartyName,
+    decimal TotalAmount,
+    decimal SettledAmount,
+    DateOnly DueDate,
+    DateTimeOffset CreatedAt);
+
+public sealed record InvoiceDocument(
+    Guid Id,
+    string InvoiceNumber,
+    InvoiceType InvoiceType,
+    InvoiceState State,
+    string SourceDocumentType,
+    string SourceDocumentNumber,
+    string CounterpartyName,
+    decimal Amount,
+    DateOnly IssuedOn,
+    DateOnly DueDate);
+
+public sealed record SettlementApplication(
+    Guid Id,
+    string ApplicationNumber,
+    Guid SettlementEntryId,
+    Guid? InvoiceId,
+    decimal Amount,
+    string? Reference,
+    string AppliedBy,
+    DateTimeOffset AppliedAt);
+
+public sealed record AccountingPeriod(
+    Guid Id,
+    string PeriodCode,
+    AccountingPeriodState State,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    string? ClosedBy,
+    DateTimeOffset? ClosedAt);
+
+public sealed record AccountingVoucher(
+    Guid Id,
+    string VoucherNumber,
+    string PeriodCode,
+    AccountingVoucherState State,
+    decimal TotalDebitAmount,
+    decimal TotalCreditAmount,
+    DateTimeOffset CreatedAt);
+
+public sealed record AccountingVoucherLine(
+    Guid Id,
+    Guid AccountingVoucherId,
+    Guid AccountingBridgeEntryId,
+    int LineNumber,
+    string AccountCode,
+    decimal DebitAmount,
+    decimal CreditAmount);
 
 public sealed record VoucherExportBatch(
     Guid Id,

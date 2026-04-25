@@ -1,25 +1,40 @@
 import type {
+  AccountingPeriod,
   AccountingBridgeItem,
   AccountingExportBatch,
+  AccountingVoucher,
   AiManagementSummary,
   AuditLogItem,
   CostLedgerItem,
   CustomerListItem,
   DashboardSnapshot,
+  DepartmentListItem,
   ExternalSystemStatus,
   GoodsReceiptListItem,
   IntegrationJobItem,
   InventoryBalanceItem,
+  InvoiceListItem,
   MaterialListItem,
+  PasswordResetResult,
+  PasswordPolicy,
+  ReportCatalogItem,
+  ReportExportJob,
+  ReportPreview,
+  RoleListItem,
   PurchaseOrderListItem,
   ProductListItem,
   ProductionOrderListItem,
   QualityInspectionItem,
   SalesOrderListItem,
   SalesShipmentListItem,
+  SettlementAgingBucket,
+  SettlementApplicationItem,
+  SettlementEntry,
   Session,
   SupplierListItem,
   UserListItem,
+  WarehouseListItem,
+  WarehouseTransferListItem,
   WorkOrderListItem,
 } from '../types/runtime'
 
@@ -93,18 +108,58 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const platformApi = {
-  login: (userName: string) =>
+  login: (userName: string, password: string) =>
     request<Session>('/api/platform/session/login', {
       method: 'POST',
-      body: JSON.stringify({ userName }),
+      body: JSON.stringify({ userName, password }),
     }),
   getSession: () => request<Session>('/api/platform/session'),
+  changePassword: (payload: { currentPassword: string; newPassword: string }) =>
+    request<Session>('/api/platform/session/change-password', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  getPasswordPolicy: () => request<PasswordPolicy>('/api/platform/password-policy'),
   getUsers: () => request<UserListItem[]>('/api/platform/users'),
+  getDepartments: () => request<DepartmentListItem[]>('/api/platform/departments'),
+  createDepartment: (payload: { code: string; name: string }) =>
+    request<DepartmentListItem>('/api/platform/departments', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  getRoles: () => request<RoleListItem[]>('/api/platform/roles'),
+  updateUserDepartment: (userId: string, payload: { departmentId: string }) =>
+    request<UserListItem>(`/api/platform/users/${userId}/department`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateUserRoles: (userId: string, payload: { roleIds: string[] }) =>
+    request<UserListItem>(`/api/platform/users/${userId}/roles`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  resetUserPassword: (userId: string) =>
+    request<PasswordResetResult>(`/api/platform/users/${userId}/reset-password`, {
+      method: 'POST',
+    }),
+  unlockUser: (userId: string) =>
+    request<UserListItem>(`/api/platform/users/${userId}/unlock`, {
+      method: 'POST',
+    }),
   getAuditLogs: (take = 20) => request<AuditLogItem[]>(`/api/platform/audit-logs?take=${take}`),
 }
 
 export const reportingApi = {
   getDashboard: () => request<DashboardSnapshot>('/api/reporting/dashboard'),
+  getCatalog: () => request<ReportCatalogItem[]>('/api/reporting/catalog'),
+  getReportPreview: (reportCode: string, take = 20) =>
+    request<ReportPreview>(`/api/reporting/reports/${reportCode}?take=${take}`),
+  getExportJobs: (take = 20) => request<ReportExportJob[]>(`/api/reporting/export-jobs?take=${take}`),
+  createExportJob: (payload: { reportCode: string; format: string }) =>
+    request<ReportExportJob>('/api/reporting/export-jobs', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 }
 
 export const crmApi = {
@@ -145,6 +200,7 @@ export const erpApi = {
   getProducts: () => request<ProductListItem[]>('/api/erp/products'),
   getMaterials: () => request<MaterialListItem[]>('/api/erp/materials'),
   getSuppliers: () => request<SupplierListItem[]>('/api/erp/suppliers'),
+  getWarehouses: () => request<WarehouseListItem[]>('/api/erp/warehouses'),
   getPurchaseOrders: () => request<PurchaseOrderListItem[]>('/api/erp/purchase-orders'),
   createPurchaseOrder: (payload: {
     supplierId: string
@@ -174,6 +230,18 @@ export const erpApi = {
       body: JSON.stringify(payload),
     }),
   getGoodsReceipts: () => request<GoodsReceiptListItem[]>('/api/erp/goods-receipts'),
+  getWarehouseTransfers: () => request<WarehouseTransferListItem[]>('/api/erp/warehouse-transfers'),
+  createWarehouseTransfer: (payload: {
+    fromWarehouseCode: string
+    toWarehouseCode: string
+    itemCode: string
+    quantity: number
+    batchNumber: string | null
+  }) =>
+    request<WarehouseTransferListItem>('/api/erp/warehouse-transfers', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   getProductionOrders: () => request<ProductionOrderListItem[]>('/api/erp/production-orders'),
   getSalesShipments: () => request<SalesShipmentListItem[]>('/api/erp/sales-shipments'),
   createSalesShipment: (payload: {
@@ -188,6 +256,51 @@ export const erpApi = {
   getInventoryBalances: () => request<InventoryBalanceItem[]>('/api/erp/inventory-balances'),
   getCostLedgers: () => request<CostLedgerItem[]>('/api/erp/cost-ledgers'),
   getAccountingBridges: () => request<AccountingBridgeItem[]>('/api/erp/accounting-bridges'),
+  getInvoices: () => request<InvoiceListItem[]>('/api/erp/invoices'),
+  createInvoice: (payload: { settlementEntryId: string; issuedOn: string }) =>
+    request<InvoiceListItem>('/api/erp/invoices', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  issueInvoice: (invoiceId: string) =>
+    request<InvoiceListItem>(`/api/erp/invoices/${invoiceId}/issue`, {
+      method: 'POST',
+    }),
+  getSettlements: () => request<SettlementEntry[]>('/api/erp/settlements'),
+  applySettlement: (
+    settlementEntryId: string,
+    payload: {
+      amount: number
+      reference: string | null
+    },
+  ) =>
+    request<SettlementEntry>(`/api/erp/settlements/${settlementEntryId}/apply`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  getSettlementApplications: () =>
+    request<SettlementApplicationItem[]>('/api/erp/settlement-applications'),
+  getSettlementAging: () => request<SettlementAgingBucket[]>('/api/erp/settlement-aging'),
+  getAccountingPeriods: () => request<AccountingPeriod[]>('/api/erp/accounting-periods'),
+  closeAccountingPeriod: (accountingPeriodId: string, payload: { notes: string | null }) =>
+    request<AccountingPeriod>(`/api/erp/accounting-periods/${accountingPeriodId}/close`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  getAccountingVouchers: () => request<AccountingVoucher[]>('/api/erp/accounting-vouchers'),
+  createAccountingVoucher: (payload: { accountingBridgeIds: string[]; notes: string | null }) =>
+    request<AccountingVoucher>('/api/erp/accounting-vouchers', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  approveAccountingVoucher: (accountingVoucherId: string) =>
+    request<AccountingVoucher>(`/api/erp/accounting-vouchers/${accountingVoucherId}/approve`, {
+      method: 'POST',
+    }),
+  postAccountingVoucher: (accountingVoucherId: string) =>
+    request<AccountingVoucher>(`/api/erp/accounting-vouchers/${accountingVoucherId}/post`, {
+      method: 'POST',
+    }),
   updateAccountingBridgeState: (accountingBridgeId: string, payload: { targetState: string }) =>
     request<AccountingBridgeItem>(`/api/erp/accounting-bridges/${accountingBridgeId}/state`, {
       method: 'POST',
@@ -255,6 +368,11 @@ export const integrationApi = {
       method: 'POST',
     }),
   getIntegrationJobs: () => request<IntegrationJobItem[]>('/api/integration/jobs'),
+  reconcileIntegrationJob: (integrationJobId: string, payload?: { notes: string | null }) =>
+    request<IntegrationJobItem>(`/api/integration/jobs/${integrationJobId}/reconcile`, {
+      method: 'POST',
+      body: JSON.stringify({ notes: payload?.notes ?? null }),
+    }),
   completeIntegrationJob: (
     integrationJobId: string,
     payload: {

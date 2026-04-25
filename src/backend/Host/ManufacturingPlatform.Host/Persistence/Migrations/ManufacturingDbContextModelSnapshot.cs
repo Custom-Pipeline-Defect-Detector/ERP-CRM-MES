@@ -67,6 +67,9 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("BatchNumber")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -78,6 +81,12 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExternalBatchNumber")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastMessage")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset?>("SentAt")
@@ -99,6 +108,151 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("AccountingExportBatches");
+                });
+
+            modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.AccountingPeriodEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CloseNotes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ClosedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("EndDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PeriodCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PeriodCode")
+                        .IsUnique();
+
+                    b.ToTable("AccountingPeriods");
+                });
+
+            modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.AccountingVoucherEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("LineCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PeriodCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("PostedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PostedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("TotalCreditAmount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("TotalDebitAmount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("VoucherNumber")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PeriodCode");
+
+                    b.HasIndex("VoucherNumber")
+                        .IsUnique();
+
+                    b.ToTable("AccountingVouchers");
+                });
+
+            modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.AccountingVoucherLineEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AccountCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("AccountingBridgeEntryId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("AccountingVoucherId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("CreditAmount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("DebitAmount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Narrative")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceBridgeNumber")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceDocumentNumber")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceEvent")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountingBridgeEntryId");
+
+                    b.HasIndex("AccountingVoucherId", "LineNumber")
+                        .IsUnique();
+
+                    b.ToTable("AccountingVoucherLines");
                 });
 
             modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.AiInsightRunEntity", b =>
@@ -294,6 +448,13 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("AccountingExportPath")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("AdapterMode")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("BaseUrl")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -304,7 +465,14 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("JobStatusPathTemplate")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTimeOffset?>("LastCheckedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastError")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
@@ -376,10 +544,22 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("AttemptNumber")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTimeOffset?>("CompletedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("DispatchEndpoint")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid?>("ExportBatchId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExternalBatchNumber")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExternalJobNumber")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("JobNumber")
@@ -390,7 +570,13 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTimeOffset?>("LastAttemptedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("LastError")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastMessage")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("PayloadSummary")
@@ -398,6 +584,15 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset>("QueuedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RequestPayloadJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResponseCode")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResponsePayloadJson")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("State")
@@ -410,6 +605,8 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ExportBatchId");
+
+                    b.HasIndex("ExternalJobNumber");
 
                     b.HasIndex("JobNumber")
                         .IsUnique();
@@ -471,6 +668,60 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                     b.HasIndex("WarehouseId");
 
                     b.ToTable("InventoryTransactions");
+                });
+
+            modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.InvoiceEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CounterpartyName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InvoiceNumber")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("InvoiceType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly>("IssuedOn")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("SettlementEntryId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceDocumentNumber")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceDocumentType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceNumber")
+                        .IsUnique();
+
+                    b.HasIndex("SettlementEntryId")
+                        .IsUnique();
+
+                    b.ToTable("Invoices");
                 });
 
             modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.MaterialEntity", b =>
@@ -728,6 +979,64 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                     b.ToTable("QualityInspections");
                 });
 
+            modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.ReportExportJobEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Format")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("JobNumber")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReportCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReportName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("RequestedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RequestedBy")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RowCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("JobNumber")
+                        .IsUnique();
+
+                    b.ToTable("ReportExportJobs");
+                });
+
             modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.RoleEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -875,6 +1184,98 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                     b.ToTable("Sessions");
                 });
 
+            modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.SettlementApplicationEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ApplicationNumber")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("AppliedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AppliedBy")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("InvoiceId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Reference")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("SettlementEntryId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicationNumber")
+                        .IsUnique();
+
+                    b.HasIndex("InvoiceId");
+
+                    b.HasIndex("SettlementEntryId");
+
+                    b.ToTable("SettlementApplications");
+                });
+
+            modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.SettlementEntryEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CounterpartyName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EntryNumber")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("LastSettledAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("SettledAmount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SettlementType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SourceDocumentNumber")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceDocumentType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntryNumber")
+                        .IsUnique();
+
+                    b.ToTable("SettlementEntries");
+                });
+
             modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.SupplierEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -923,6 +1324,28 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FailedAccessCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset?>("LastLoginAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("LockedUntil")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("MustChangePassword")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset>("PasswordChangedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("PasswordResetExpiresAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("UserName")
@@ -977,6 +1400,64 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Warehouses");
+                });
+
+            modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.WarehouseTransferEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BatchNumber")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("FromWarehouseId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ItemCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ItemName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("QualityStatus")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("ToWarehouseId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("TotalCost")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TransferNumber")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("TransferredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("UnitCost")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FromWarehouseId");
+
+                    b.HasIndex("ToWarehouseId");
+
+                    b.HasIndex("TransferNumber")
+                        .IsUnique();
+
+                    b.ToTable("WarehouseTransfers");
                 });
 
             modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.WorkOrderEntity", b =>
@@ -1097,6 +1578,25 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                     b.Navigation("ExportBatch");
                 });
 
+            modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.AccountingVoucherLineEntity", b =>
+                {
+                    b.HasOne("ManufacturingPlatform.Host.Persistence.AccountingBridgeEntryEntity", "AccountingBridgeEntry")
+                        .WithMany()
+                        .HasForeignKey("AccountingBridgeEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ManufacturingPlatform.Host.Persistence.AccountingVoucherEntity", "AccountingVoucher")
+                        .WithMany("Lines")
+                        .HasForeignKey("AccountingVoucherId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AccountingBridgeEntry");
+
+                    b.Navigation("AccountingVoucher");
+                });
+
             modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.BomComponentEntity", b =>
                 {
                     b.HasOne("ManufacturingPlatform.Host.Persistence.MaterialEntity", "Material")
@@ -1173,6 +1673,17 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Warehouse");
+                });
+
+            modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.InvoiceEntity", b =>
+                {
+                    b.HasOne("ManufacturingPlatform.Host.Persistence.SettlementEntryEntity", "SettlementEntry")
+                        .WithOne("Invoice")
+                        .HasForeignKey("ManufacturingPlatform.Host.Persistence.InvoiceEntity", "SettlementEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SettlementEntry");
                 });
 
             modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.ProductionOrderEntity", b =>
@@ -1292,6 +1803,24 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.SettlementApplicationEntity", b =>
+                {
+                    b.HasOne("ManufacturingPlatform.Host.Persistence.InvoiceEntity", "Invoice")
+                        .WithMany("Applications")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ManufacturingPlatform.Host.Persistence.SettlementEntryEntity", "SettlementEntry")
+                        .WithMany("Applications")
+                        .HasForeignKey("SettlementEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
+
+                    b.Navigation("SettlementEntry");
+                });
+
             modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.UserEntity", b =>
                 {
                     b.HasOne("ManufacturingPlatform.Host.Persistence.DepartmentEntity", "Department")
@@ -1320,6 +1849,25 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                     b.Navigation("Role");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.WarehouseTransferEntity", b =>
+                {
+                    b.HasOne("ManufacturingPlatform.Host.Persistence.WarehouseEntity", "FromWarehouse")
+                        .WithMany()
+                        .HasForeignKey("FromWarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ManufacturingPlatform.Host.Persistence.WarehouseEntity", "ToWarehouse")
+                        .WithMany()
+                        .HasForeignKey("ToWarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("FromWarehouse");
+
+                    b.Navigation("ToWarehouse");
                 });
 
             modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.WorkOrderEntity", b =>
@@ -1351,6 +1899,11 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                     b.Navigation("IntegrationJobs");
                 });
 
+            modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.AccountingVoucherEntity", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
             modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.CustomerEntity", b =>
                 {
                     b.Navigation("SalesOrders");
@@ -1359,6 +1912,11 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
             modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.DepartmentEntity", b =>
                 {
                     b.Navigation("Users");
+                });
+
+            modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.InvoiceEntity", b =>
+                {
+                    b.Navigation("Applications");
                 });
 
             modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.MaterialEntity", b =>
@@ -1400,6 +1958,13 @@ namespace ManufacturingPlatform.Host.Persistence.Migrations
                     b.Navigation("ProductionOrder");
 
                     b.Navigation("SalesShipments");
+                });
+
+            modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.SettlementEntryEntity", b =>
+                {
+                    b.Navigation("Applications");
+
+                    b.Navigation("Invoice");
                 });
 
             modelBuilder.Entity("ManufacturingPlatform.Host.Persistence.SupplierEntity", b =>

@@ -4,6 +4,7 @@ using ManufacturingPlatform.Modules.Integration.Domain;
 using ManufacturingPlatform.Modules.MES.Domain;
 using ManufacturingPlatform.Modules.Quality.Domain;
 using Microsoft.EntityFrameworkCore;
+using ManufacturingPlatform.Host.Security;
 
 namespace ManufacturingPlatform.Host.Persistence;
 
@@ -37,6 +38,7 @@ public static class ManufacturingDbInitializer
 
         if (await dbContext.Users.AnyAsync(cancellationToken))
         {
+            await EnsureUserSecurityAsync(dbContext, cancellationToken);
             return;
         }
 
@@ -44,9 +46,10 @@ public static class ManufacturingDbInitializer
         var planningDepartment = new DepartmentEntity { Id = Id("DEPT-PLANNING"), Code = "PLN", Name = "Production Planning" };
         var productionDepartment = new DepartmentEntity { Id = Id("DEPT-PROD"), Code = "PROD", Name = "Production" };
         var qualityDepartment = new DepartmentEntity { Id = Id("DEPT-QA"), Code = "QA", Name = "Quality" };
+        var financeDepartment = new DepartmentEntity { Id = Id("DEPT-FIN"), Code = "FIN", Name = "Finance" };
         var itDepartment = new DepartmentEntity { Id = Id("DEPT-IT"), Code = "IT", Name = "IT" };
 
-        dbContext.Departments.AddRange(salesDepartment, planningDepartment, productionDepartment, qualityDepartment, itDepartment);
+        dbContext.Departments.AddRange(salesDepartment, planningDepartment, productionDepartment, qualityDepartment, financeDepartment, itDepartment);
 
         var permissions = CreatePermissions();
         dbContext.Permissions.AddRange(permissions.Values);
@@ -56,8 +59,9 @@ public static class ManufacturingDbInitializer
         var plannerRole = new RoleEntity { Id = Id("ROLE-PLANNER"), Code = "PLANNER", Name = "Production Planner" };
         var operatorRole = new RoleEntity { Id = Id("ROLE-OPERATOR"), Code = "OPERATOR", Name = "Workshop Operator" };
         var qualityRole = new RoleEntity { Id = Id("ROLE-QUALITY"), Code = "QUALITY", Name = "Quality Engineer" };
+        var financeRole = new RoleEntity { Id = Id("ROLE-FINANCE"), Code = "FINANCE", Name = "Finance Controller" };
 
-        dbContext.Roles.AddRange(adminRole, salesRole, plannerRole, operatorRole, qualityRole);
+        dbContext.Roles.AddRange(adminRole, salesRole, plannerRole, operatorRole, qualityRole, financeRole);
 
         LinkRolePermissions(dbContext, adminRole, permissions.Values);
         LinkRolePermissions(
@@ -86,9 +90,12 @@ public static class ManufacturingDbInitializer
             permissions["erp.production-order.read"],
             permissions["erp.production-order.release"],
             permissions["erp.inventory.read"],
+            permissions["erp.transfer.write"],
             permissions["erp.cost.read"],
             permissions["erp.shipment.read"],
             permissions["erp.shipment.write"],
+            permissions["erp.invoice.read"],
+            permissions["erp.settlement.read"],
             permissions["erp.accounting.manage"],
             permissions["integration.read"],
             permissions["integration.manage"],
@@ -108,6 +115,21 @@ public static class ManufacturingDbInitializer
             permissions["erp.inventory.read"],
             permissions["reporting.dashboard.read"],
             permissions["ai.summary.read"]);
+        LinkRolePermissions(
+            dbContext,
+            financeRole,
+            permissions["erp.inventory.read"],
+            permissions["erp.cost.read"],
+            permissions["erp.invoice.read"],
+            permissions["erp.invoice.write"],
+            permissions["erp.settlement.read"],
+            permissions["erp.settlement.write"],
+            permissions["erp.period.close"],
+            permissions["erp.accounting.manage"],
+            permissions["integration.read"],
+            permissions["integration.manage"],
+            permissions["reporting.dashboard.read"],
+            permissions["ai.summary.read"]);
 
         var users = new[]
         {
@@ -115,7 +137,8 @@ public static class ManufacturingDbInitializer
             CreateUser("sales", "Sales Director", salesDepartment, salesRole),
             CreateUser("planner", "Planning Manager", planningDepartment, plannerRole),
             CreateUser("operator", "Workshop Operator", productionDepartment, operatorRole),
-            CreateUser("quality", "Quality Engineer", qualityDepartment, qualityRole)
+            CreateUser("quality", "Quality Engineer", qualityDepartment, qualityRole),
+            CreateUser("finance", "Finance Controller", financeDepartment, financeRole)
         };
 
         dbContext.Users.AddRange(users.Select(user => user.User));
@@ -123,7 +146,9 @@ public static class ManufacturingDbInitializer
 
         var rmWarehouse = new WarehouseEntity { Id = Id("WH-RM"), Code = "RM-01", Name = "Raw Material Warehouse", IsQualityControlled = true, SupportsWip = false };
         var fgWarehouse = new WarehouseEntity { Id = Id("WH-FG"), Code = "FG-01", Name = "Finished Goods Warehouse", IsQualityControlled = true, SupportsWip = false };
-        dbContext.Warehouses.AddRange(rmWarehouse, fgWarehouse);
+        var wipWarehouse = new WarehouseEntity { Id = Id("WH-WIP"), Code = "WIP-01", Name = "WIP Buffer Warehouse", IsQualityControlled = false, SupportsWip = true };
+        var quarantineWarehouse = new WarehouseEntity { Id = Id("WH-QA"), Code = "QA-01", Name = "Quality Hold Warehouse", IsQualityControlled = true, SupportsWip = false };
+        dbContext.Warehouses.AddRange(rmWarehouse, fgWarehouse, wipWarehouse, quarantineWarehouse);
 
         var cell = new MaterialEntity { Id = Id("MAT-CELL"), Code = "CELL-182N", Name = "182N Solar Cell", BaseUnitCode = "PCS", StandardUnitCost = 1.85m, ReorderLevel = 2000m, IsLotControlled = true };
         var glass = new MaterialEntity { Id = Id("MAT-GLASS"), Code = "GLASS-2MM", Name = "2mm PV Glass", BaseUnitCode = "PCS", StandardUnitCost = 24.50m, ReorderLevel = 200m, IsLotControlled = true };
@@ -259,13 +284,69 @@ public static class ManufacturingDbInitializer
                 ReceivedOn = new DateOnly(2026, 4, 20)
             });
 
+        dbContext.SettlementEntries.Add(
+            new SettlementEntryEntity
+            {
+                Id = Id("SETTLEMENT-001"),
+                EntryNumber = "SE-0001",
+                SettlementType = SettlementType.Payable,
+                State = SettlementState.Open,
+                SourceDocumentType = "GoodsReceipt",
+                SourceDocumentNumber = "GR-0001",
+                CounterpartyName = supplierA.Name,
+                TotalAmount = 5220m,
+                SettledAmount = 0m,
+                DueDate = new DateOnly(2026, 5, 20),
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-2)
+            });
+
+        dbContext.AccountingPeriods.AddRange(
+            new AccountingPeriodEntity
+            {
+                Id = Id("PERIOD-2026-03"),
+                PeriodCode = "2026-03",
+                State = AccountingPeriodState.Closed,
+                StartDate = new DateOnly(2026, 3, 1),
+                EndDate = new DateOnly(2026, 3, 31),
+                ClosedBy = "system",
+                ClosedAt = DateTimeOffset.UtcNow.AddDays(-20),
+                CloseNotes = "Seeded historical closed period."
+            },
+            new AccountingPeriodEntity
+            {
+                Id = Id("PERIOD-2026-04"),
+                PeriodCode = "2026-04",
+                State = AccountingPeriodState.Open,
+                StartDate = new DateOnly(2026, 4, 1),
+                EndDate = new DateOnly(2026, 4, 30)
+            },
+            new AccountingPeriodEntity
+            {
+                Id = Id("PERIOD-2026-05"),
+                PeriodCode = "2026-05",
+                State = AccountingPeriodState.Open,
+                StartDate = new DateOnly(2026, 5, 1),
+                EndDate = new DateOnly(2026, 5, 31)
+            },
+            new AccountingPeriodEntity
+            {
+                Id = Id("PERIOD-2026-06"),
+                PeriodCode = "2026-06",
+                State = AccountingPeriodState.Open,
+                StartDate = new DateOnly(2026, 6, 1),
+                EndDate = new DateOnly(2026, 6, 30)
+            });
+
         dbContext.ExternalSystems.Add(
             new ExternalSystemEntity
             {
                 Id = Id("EXT-KINGDEE"),
                 SystemCode = "KINGDEE",
                 Name = "Kingdee Finance",
-                BaseUrl = "https://api123.icu/v1",
+                BaseUrl = "mock://kingdee-finance",
+                AdapterMode = ExternalSystemAdapterMode.Mock,
+                AccountingExportPath = "/accounting-export-batches",
+                JobStatusPathTemplate = "/jobs/{externalJobNumber}",
                 IsEnabled = true,
                 HealthStatus = ExternalSystemHealthStatus.Configured,
                 LastCheckedAt = DateTimeOffset.UtcNow.AddMinutes(-30)
@@ -606,9 +687,40 @@ public static class ManufacturingDbInitializer
                 Id = Id($"USER-{userName.ToUpperInvariant()}"),
                 UserName = userName,
                 DisplayName = displayName,
+                PasswordHash = PasswordSecurity.HashPassword(PasswordSecurity.DefaultSeedPassword),
+                PasswordChangedAt = DateTimeOffset.UtcNow,
+                MustChangePassword = false,
+                PasswordResetExpiresAt = null,
+                FailedAccessCount = 0,
+                LockedUntil = null,
+                LastLoginAt = null,
                 DepartmentId = department.Id
             },
             role);
+    }
+
+    private static async Task EnsureUserSecurityAsync(ManufacturingDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var usersNeedingPassword = await dbContext.Users
+            .Where(entity => string.IsNullOrWhiteSpace(entity.PasswordHash))
+            .ToArrayAsync(cancellationToken);
+
+        if (usersNeedingPassword.Length == 0)
+        {
+            return;
+        }
+
+        foreach (var user in usersNeedingPassword)
+        {
+            user.PasswordHash = PasswordSecurity.HashPassword(PasswordSecurity.DefaultSeedPassword);
+            user.PasswordChangedAt = DateTimeOffset.UtcNow;
+            user.MustChangePassword = true;
+            user.PasswordResetExpiresAt = DateTimeOffset.UtcNow.AddHours(24);
+            user.FailedAccessCount = 0;
+            user.LockedUntil = null;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private static Dictionary<string, PermissionEntity> CreatePermissions()
@@ -631,9 +743,15 @@ public static class ManufacturingDbInitializer
             Permission("erp.production-order.read", "Read production orders"),
             Permission("erp.production-order.release", "Release production orders"),
             Permission("erp.inventory.read", "Read inventory"),
+            Permission("erp.transfer.write", "Execute warehouse transfers"),
             Permission("erp.cost.read", "Read cost ledgers"),
             Permission("erp.shipment.read", "Read sales shipments"),
             Permission("erp.shipment.write", "Create sales shipments"),
+            Permission("erp.invoice.read", "Read invoice support documents"),
+            Permission("erp.invoice.write", "Create and issue invoice support documents"),
+            Permission("erp.settlement.read", "Read receivable and payable entries"),
+            Permission("erp.settlement.write", "Apply receivable and payable settlements"),
+            Permission("erp.period.close", "Close accounting periods"),
             Permission("erp.accounting.manage", "Manage accounting bridge"),
             Permission("integration.read", "Read integration status"),
             Permission("integration.manage", "Manage integration jobs"),

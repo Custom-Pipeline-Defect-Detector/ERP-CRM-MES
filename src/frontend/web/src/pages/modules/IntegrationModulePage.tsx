@@ -82,6 +82,21 @@ export function IntegrationModulePage() {
     }
   }
 
+  async function handleReconcileJob(jobId: string) {
+    setIsSaving(true)
+
+    try {
+      await integrationApi.reconcileIntegrationJob(jobId, {
+        notes: 'Manual reconcile requested from integration console.',
+      })
+      await refreshData()
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   async function handleCompleteJob(jobId: string, outcome: 'Succeeded' | 'Failed') {
     setIsSaving(true)
 
@@ -107,8 +122,9 @@ export function IntegrationModulePage() {
         </div>
         <h1 className="hero-title">Batch financial exports and monitor adapter outcomes explicitly.</h1>
         <p className="hero-copy">
-          Integration now turns ready accounting bridges into export batches, dispatches them to a
-          target system, and records the job outcome back onto batches and bridge states.
+          Integration now turns ready accounting bridges into export batches, dispatches them
+          through a configured adapter, tracks the external job reference, and reconciles the final
+          acknowledgement back onto batches and bridge states.
         </p>
       </section>
 
@@ -126,6 +142,7 @@ export function IntegrationModulePage() {
                   <tr>
                     <th>System</th>
                     <th>Endpoint</th>
+                    <th>Adapter</th>
                     <th>Status</th>
                     <th>Last Check</th>
                     <th>Action</th>
@@ -139,6 +156,7 @@ export function IntegrationModulePage() {
                         <div className="cell-meta">{system.name}</div>
                       </td>
                       <td>{system.baseUrl}</td>
+                      <td>{system.adapterMode}</td>
                       <td>{system.healthStatus}</td>
                       <td>{system.lastCheckedAt ? formatDateTime(system.lastCheckedAt) : 'Unknown'}</td>
                       <td>
@@ -150,6 +168,7 @@ export function IntegrationModulePage() {
                         >
                           Create Export Batch
                         </button>
+                        {system.lastError ? <div className="cell-meta">{system.lastError}</div> : null}
                       </td>
                     </tr>
                   ))}
@@ -193,6 +212,7 @@ export function IntegrationModulePage() {
                   <th>Target</th>
                   <th>Bridges</th>
                   <th>Total</th>
+                  <th>Attempt</th>
                   <th>State</th>
                   <th>Created</th>
                   <th>Action</th>
@@ -205,6 +225,7 @@ export function IntegrationModulePage() {
                     <td>{batch.targetSystemCode}</td>
                     <td>{batch.bridgeCount}</td>
                     <td>{formatCurrency(batch.totalAmount)}</td>
+                    <td>{batch.attemptCount}</td>
                     <td>{batch.state}</td>
                     <td>{formatDateTime(batch.createdAt)}</td>
                     <td>
@@ -214,8 +235,10 @@ export function IntegrationModulePage() {
                         onClick={() => void handleDispatch(batch.id)}
                         type="button"
                       >
-                        Dispatch
+                        {batch.state === 'Failed' ? 'Retry Dispatch' : 'Dispatch'}
                       </button>
+                      {batch.externalBatchNumber ? <div className="cell-meta">External batch {batch.externalBatchNumber}</div> : null}
+                      {batch.lastMessage ? <div className="cell-meta">{batch.lastMessage}</div> : null}
                     </td>
                   </tr>
                 ))}
@@ -233,9 +256,11 @@ export function IntegrationModulePage() {
                   <th>Job</th>
                   <th>Target</th>
                   <th>Batch</th>
+                  <th>External Job</th>
                   <th>Payload</th>
                   <th>State</th>
-                  <th>Queued</th>
+                  <th>Attempt</th>
+                  <th>Updated</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -245,18 +270,28 @@ export function IntegrationModulePage() {
                     <td>{job.jobNumber}</td>
                     <td>{job.targetSystemCode}</td>
                     <td>{job.relatedBatchNumber ?? 'Not linked'}</td>
+                    <td>{job.externalJobNumber ?? 'Pending external ref'}</td>
                     <td>{job.payloadSummary}</td>
                     <td>{job.state}</td>
-                    <td>{formatDateTime(job.queuedAt)}</td>
+                    <td>{job.attemptNumber}</td>
+                    <td>{formatDateTime(job.lastAttemptedAt ?? job.queuedAt)}</td>
                     <td>
                       <div className="action-row">
                         <button
                           className="button button-primary"
                           disabled={isSaving || (job.state !== 'Sent' && job.state !== 'Queued')}
+                          onClick={() => void handleReconcileJob(job.id)}
+                          type="button"
+                        >
+                          Reconcile
+                        </button>
+                        <button
+                          className="button button-secondary"
+                          disabled={isSaving || (job.state !== 'Sent' && job.state !== 'Queued')}
                           onClick={() => void handleCompleteJob(job.id, 'Succeeded')}
                           type="button"
                         >
-                          Mark Success
+                          Override Success
                         </button>
                         <button
                           className="button button-secondary"
@@ -264,9 +299,12 @@ export function IntegrationModulePage() {
                           onClick={() => void handleCompleteJob(job.id, 'Failed')}
                           type="button"
                         >
-                          Mark Failed
+                          Override Failed
                         </button>
                       </div>
+                      {job.responseCode ? <div className="cell-meta">HTTP {job.responseCode}</div> : null}
+                      {job.responseSummary ? <div className="cell-meta">{job.responseSummary}</div> : null}
+                      {job.lastError ? <div className="cell-meta">{job.lastError}</div> : null}
                     </td>
                   </tr>
                 ))}

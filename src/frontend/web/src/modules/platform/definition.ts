@@ -4,12 +4,12 @@ export const platformModule: ModuleDefinition = {
   key: 'platform',
   title: 'Platform',
   phase: 'Phase 1',
-  summary: 'Identity, RBAC, audit, attachments, and configuration foundations.',
+  summary: 'Identity, RBAC, password recovery, audit, attachments, and configuration foundations.',
   description:
-    'Owns the administration spine for the entire intranet platform, including organizations, users, permissions, logs, and system dictionaries.',
+    'Owns the administration spine for the entire intranet platform, including organizations, users, account recovery, department ownership, role assignment, permissions, logs, and system dictionaries.',
   capabilities: [
     'Organization and department management',
-    'User, role, and permission management',
+    'User department assignment, role assignment, expiring password reset, and lockout management',
     'Audit logs and operation logs',
     'Dictionary, configuration, and attachment services',
   ],

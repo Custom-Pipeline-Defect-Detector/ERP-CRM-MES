@@ -7,6 +7,7 @@ import { IntegrationModulePage } from './modules/IntegrationModulePage'
 import { MesModulePage } from './modules/MesModulePage'
 import { PlatformModulePage } from './modules/PlatformModulePage'
 import { QualityModulePage } from './modules/QualityModulePage'
+import { ReportingModulePage } from './modules/ReportingModulePage'
 
 export function ModulePage() {
   const { moduleKey } = useParams()
@@ -39,6 +40,10 @@ export function ModulePage() {
 
   if (moduleDefinition.key === 'quality') {
     return <QualityModulePage />
+  }
+
+  if (moduleDefinition.key === 'reporting') {
+    return <ReportingModulePage />
   }
 
   if (moduleDefinition.key === 'ai') {
